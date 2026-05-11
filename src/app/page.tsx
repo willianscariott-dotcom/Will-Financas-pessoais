@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useMonthFilter, MONTHS } from "@/hooks/useMonthFilter";
 import { supabase } from "@/lib/supabase";
 import { Card, Metric, Text, AreaChart, BarList, Title, Flex, Grid } from "@tremor/react";
-import { TrendingUp, Clock, Percent, ArrowUpRight, ArrowDownRight, LogOut, List } from "lucide-react";
+import { TrendingUp, ArrowUpRight, ArrowDownRight, LogOut, List, DollarSign, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -78,42 +78,39 @@ export default function PainelVitoria() {
   }
 
   const calculateKPIs = (): KPIData[] => {
+    const incomes = transactions.filter((t) => t.type === "income").reduce((sum, t) => sum + t.amount, 0);
+    const expenses = transactions.filter((t) => t.type === "expense").reduce((sum, t) => sum + t.amount, 0);
+    const balance = incomes - expenses;
+
     if (transactions.length === 0) {
       return [
-        { title: "Lucro Direto", metric: "R$ 0", metricPrev: "R$ 0", delta: "0%", deltaType: "increase" },
-        { title: "Tempo de Liberdade", metric: "0 meses", metricPrev: "0 meses", delta: "0 meses", deltaType: "moderateIncrease" },
-        { title: "Eficiência de Amortização", metric: "0%", metricPrev: "0%", delta: "0%", deltaType: "increase" },
+        { title: "Receita Total", metric: "R$ 0", metricPrev: "R$ 0", delta: "0%", deltaType: "increase" },
+        { title: "Despesas Totais", metric: "R$ 0", metricPrev: "R$ 0", delta: "0%", deltaType: "increase" },
+        { title: "Saldo do Mês", metric: "R$ 0", metricPrev: "R$ 0", delta: "0%", deltaType: "increase" },
       ];
     }
 
-    const incomes = transactions.filter((t) => t.type === "income").reduce((sum, t) => sum + t.amount, 0);
-    const expenses = transactions.filter((t) => t.type === "expense").reduce((sum, t) => sum + t.amount, 0);
-    const profit = incomes - expenses;
-
-    const efficiency = incomes > 0 ? ((profit / incomes) * 100).toFixed(1) : "0";
-    const monthsSaved = Math.floor(profit / 1500);
-
     return [
       {
-        title: "Lucro Direto",
-        metric: `R$ ${profit.toLocaleString("pt-BR")}`,
+        title: "Receita Total",
+        metric: `R$ ${incomes.toLocaleString("pt-BR")}`,
         metricPrev: `R$ ${incomes.toLocaleString("pt-BR")}`,
-        delta: `${((profit / (incomes || 1)) * 100).toFixed(1)}%`,
-        deltaType: profit >= 0 ? "increase" : "moderateDecrease",
-      },
-      {
-        title: "Tempo de Liberdade",
-        metric: `${monthsSaved} meses`,
-        metricPrev: "0 meses",
-        delta: `+${monthsSaved} meses`,
-        deltaType: "moderateIncrease",
-      },
-      {
-        title: "Eficiência de Amortização",
-        metric: `${efficiency}%`,
-        metricPrev: "0%",
-        delta: `+${efficiency}pp`,
+        delta: "100%",
         deltaType: "increase",
+      },
+      {
+        title: "Despesas Totais",
+        metric: `R$ ${expenses.toLocaleString("pt-BR")}`,
+        metricPrev: `R$ ${expenses.toLocaleString("pt-BR")}`,
+        delta: "100%",
+        deltaType: "moderateDecrease",
+      },
+      {
+        title: "Saldo do Mês",
+        metric: `R$ ${balance.toLocaleString("pt-BR")}`,
+        metricPrev: "R$ 0",
+        delta: balance >= 0 ? "Positivo" : "Negativo",
+        deltaType: balance >= 0 ? "increase" : "moderateDecrease",
       },
     ];
   };
@@ -177,10 +174,10 @@ export default function PainelVitoria() {
         <header className="flex items-center justify-between">
           <div>
             <h1 className="text-4xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight">
-              Painel de Vitória
+              Dashboard Financeiro
             </h1>
             <p className="text-zinc-500 dark:text-zinc-400 mt-2 text-lg">
-              Acompanhe sua jornada para vencer o banco
+              Resumo das suas finanças pessoais
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -216,15 +213,15 @@ export default function PainelVitoria() {
           <>
             <Grid numItems={1} numItemsSm={2} numItemsLg={3} className="gap-6">
               {kpiData.map((kpi, index) => (
-                <Card key={kpi.title} decoration="top" decorationColor="emerald" className="dark:bg-zinc-900">
+                <Card key={kpi.title} decoration="top" decorationColor={index === 0 ? "emerald" : index === 1 ? "rose" : "blue"} className="dark:bg-zinc-900">
                   <Flex justifyContent="start" className="space-x-4">
-                    <div className={`p-3 rounded-xl ${index === 0 ? 'bg-emerald-100 dark:bg-emerald-900/30' : index === 1 ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-amber-100 dark:bg-amber-900/30'}`}>
+                    <div className={`p-3 rounded-xl ${index === 0 ? 'bg-emerald-100 dark:bg-emerald-900/30' : index === 1 ? 'bg-rose-100 dark:bg-rose-900/30' : 'bg-blue-100 dark:bg-blue-900/30'}`}>
                       {index === 0 ? (
-                        <TrendingUp className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                        <DollarSign className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
                       ) : index === 1 ? (
-                        <Clock className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                        <Wallet className="w-6 h-6 text-rose-600 dark:text-rose-400" />
                       ) : (
-                        <Percent className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                        <TrendingUp className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                       )}
                     </div>
                     <div>
@@ -239,7 +236,7 @@ export default function PainelVitoria() {
                       <ArrowDownRight className="w-4 h-4 text-rose-600" />
                     )}
                     <Text className={kpi.deltaType === "increase" || kpi.deltaType === "moderateIncrease" ? "text-emerald-600" : "text-rose-600"}>
-                      {kpi.delta} vs período anterior
+                      {kpi.delta}
                     </Text>
                   </Flex>
                 </Card>
@@ -281,7 +278,7 @@ export default function PainelVitoria() {
         )}
 
         <div className="text-center text-sm text-zinc-400 dark:text-zinc-500 py-4">
-          Dados atualizados em tempo real • © 2026 Painel de Vitória
+          Dados atualizados em tempo real • © 2026 Dashboard Financeiro
         </div>
       </div>
     </div>
