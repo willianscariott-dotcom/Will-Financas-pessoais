@@ -3,47 +3,57 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { useMonthFilter, MONTHS } from "@/hooks/useMonthFilter";
 import { supabase } from "@/lib/supabase";
-import { Card, Metric, Text, AreaChart, BarList, Title, Flex, Grid } from "@tremor/react";
-import { TrendingUp, ArrowUpRight, ArrowDownRight, LogOut, List, DollarSign, Wallet } from "lucide-react";
+import { Card, Metric, Text, Flex, Grid } from "@tremor/react";
+import { ArrowUpRight, ArrowDownRight, LogOut, List, TrendingUp, TrendingDown, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface Transaction {
   id: number;
-  type: string;
+  description: string;
+  type: "income" | "expense";
   amount: number;
-  category: string;
   date: string;
-  user_id: string;
+  account_type: string;
+  categories: {
+    name: string;
+  } | null;
+}
+
+interface CategoryData {
+  name: string;
+  value: number;
 }
 
 interface KPIData {
   title: string;
   metric: string;
-  metricPrev: string;
-  delta: string;
-  deltaType: string;
+  variation: string;
+  isPositive: boolean;
 }
 
-interface CashFlowMonth {
-  month: string;
-  Receitas: number;
-  Despesas: number;
-}
+type PeriodFilter = "month-to-date" | "full-month";
+type AccountType = "pessoal" | "negocios";
 
-interface ROIItem {
-  name: string;
-  value: number;
-}
-
-export default function PainelVitoria() {
+export default function DashboardFinanceiro() {
   const { user, loading: authLoading, signOut } = useAuth();
   const router = useRouter();
-  const { selectedMonth, setSelectedMonth } = useMonthFilter();
+
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [prevMonthTransactions, setPrevMonthTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [accountType, setAccountType] = useState<AccountType>("pessoal");
+  const [period, setPeriod] = useState<PeriodFilter>("month-to-date");
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -52,104 +62,105 @@ export default function PainelVitoria() {
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    if (user && selectedMonth) {
-      fetchTransactions();
+    if (user) {
+      fetchData();
     }
-  }, [user, selectedMonth]);
+  }, [user, accountType]);
 
-  async function fetchTransactions() {
+  async function fetchData() {
     setLoading(true);
-    const [year, month] = selectedMonth.split("-");
-    const startDate = `${year}-${month}-01`;
-    const endDate = `${year}-${month}-31`;
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
 
-    const { data, error } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("user_id", user?.id)
-      .gte("date", startDate)
-      .lte("date", endDate)
-      .order("date", { ascending: true });
+    const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+    const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
 
-    if (!error) {
-      setTransactions(data || []);
-    }
+    const currentStart = `${currentYear}-${String(currentMonth).padStart(2, "0")}-01`;
+    const currentEnd = period === "month-to-date"
+      ? now.toISOString().split("T")[0]
+      : `${currentYear}-${String(currentMonth).padStart(2, "0")}-31`;
+
+    const prevStart = `${prevYear}-${String(prevMonth).padStart(2, "0")}-01`;
+    const prevEnd = `${prevYear}-${String(prevMonth).padStart(2, "0")}-31`;
+
+    const [currentRes, prevRes] = await Promise.all([
+      supabase
+        .from("transactions")
+        .select("*, categories(name)")
+        .eq("user_id", user?.id)
+        .eq("account_type", accountType)
+        .gte("date", currentStart)
+        .lte("date", currentEnd)
+        .order("date", { ascending: false }),
+      supabase
+        .from("transactions")
+        .select("*, categories(name)")
+        .eq("user_id", user?.id)
+        .eq("account_type", accountType)
+        .gte("date", prevStart)
+        .lte("date", prevEnd)
+        .order("date", { ascending: false }),
+    ]);
+
+    if (!currentRes.error) setTransactions(currentRes.data || []);
+    if (!prevRes.error) setPrevMonthTransactions(prevRes.data || []);
     setLoading(false);
   }
 
   const calculateKPIs = (): KPIData[] => {
-    const incomes = transactions.filter((t) => t.type === "income").reduce((sum, t) => sum + t.amount, 0);
-    const expenses = transactions.filter((t) => t.type === "expense").reduce((sum, t) => sum + t.amount, 0);
-    const balance = incomes - expenses;
+    const currentIncome = transactions
+      .filter((t) => t.type === "income")
+      .reduce((sum, t) => sum + t.amount, 0);
+    const currentExpense = transactions
+      .filter((t) => t.type === "expense")
+      .reduce((sum, t) => sum + t.amount, 0);
+    const currentBalance = currentIncome - currentExpense;
 
-    if (transactions.length === 0) {
-      return [
-        { title: "Receita Total", metric: "R$ 0", metricPrev: "R$ 0", delta: "0%", deltaType: "increase" },
-        { title: "Despesas Totais", metric: "R$ 0", metricPrev: "R$ 0", delta: "0%", deltaType: "increase" },
-        { title: "Saldo do Mês", metric: "R$ 0", metricPrev: "R$ 0", delta: "0%", deltaType: "increase" },
-      ];
-    }
+    const prevIncome = prevMonthTransactions
+      .filter((t) => t.type === "income")
+      .reduce((sum, t) => sum + t.amount, 0);
+    const prevExpense = prevMonthTransactions
+      .filter((t) => t.type === "expense")
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    const calcVariation = (current: number, previous: number) => {
+      if (previous === 0) return current > 0 ? "+100%" : "0%";
+      const variation = ((current - previous) / previous) * 100;
+      return `${variation >= 0 ? "+" : ""}${variation.toFixed(1)}%`;
+    };
 
     return [
       {
-        title: "Receita Total",
-        metric: `R$ ${incomes.toLocaleString("pt-BR")}`,
-        metricPrev: `R$ ${incomes.toLocaleString("pt-BR")}`,
-        delta: "100%",
-        deltaType: "increase",
+        title: "Receitas",
+        metric: `R$ ${currentIncome.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+        variation: calcVariation(currentIncome, prevIncome),
+        isPositive: currentIncome >= prevIncome,
       },
       {
-        title: "Despesas Totais",
-        metric: `R$ ${expenses.toLocaleString("pt-BR")}`,
-        metricPrev: `R$ ${expenses.toLocaleString("pt-BR")}`,
-        delta: "100%",
-        deltaType: "moderateDecrease",
+        title: "Despesas",
+        metric: `R$ ${currentExpense.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+        variation: calcVariation(currentExpense, prevExpense),
+        isPositive: currentExpense <= prevExpense,
       },
       {
-        title: "Saldo do Mês",
-        metric: `R$ ${balance.toLocaleString("pt-BR")}`,
-        metricPrev: "R$ 0",
-        delta: balance >= 0 ? "Positivo" : "Negativo",
-        deltaType: balance >= 0 ? "increase" : "moderateDecrease",
+        title: "Saldo",
+        metric: `R$ ${currentBalance.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+        variation: currentBalance >= 0 ? "Positivo" : "Negativo",
+        isPositive: currentBalance >= 0,
       },
     ];
   };
 
-  const calculateCashFlow = (): CashFlowMonth[] => {
-    const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-    const currentMonth = new Date().getMonth();
-    const last6Months: CashFlowMonth[] = [];
-
-    for (let i = 5; i >= 0; i--) {
-      const monthIndex = (currentMonth - i + 12) % 12;
-      const monthTransactions = transactions.filter((t) => {
-        const transMonth = new Date(t.date).getMonth();
-        return transMonth === monthIndex;
-      });
-
-      const incomes = monthTransactions.filter((t) => t.type === "income").reduce((sum, t) => sum + t.amount, 0);
-      const expenses = monthTransactions.filter((t) => t.type === "expense").reduce((sum, t) => sum + t.amount, 0);
-
-      last6Months.push({
-        month: months[monthIndex],
-        Receitas: incomes,
-        Despesas: expenses,
-      });
-    }
-
-    return last6Months;
-  };
-
-  const calculateROI = (): ROIItem[] => {
+  const calculateCategoryData = (type: "income" | "expense"): CategoryData[] => {
     const categoryMap = new Map<string, number>();
-
     transactions
-      .filter((t) => t.type === "income")
+      .filter((t) => t.type === type)
       .forEach((t) => {
-        const current = categoryMap.get(t.category) || 0;
-        categoryMap.set(t.category, current + t.amount);
+        const catName = t.categories?.name || "Sem categoria";
+        const current = categoryMap.get(catName) || 0;
+        categoryMap.set(catName, current + t.amount);
       });
-
     return Array.from(categoryMap.entries())
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
@@ -164,45 +175,50 @@ export default function PainelVitoria() {
   }
 
   const kpiData = calculateKPIs();
-  const cashFlowData = calculateCashFlow();
-  const roiData = calculateROI();
+  const incomeByCategory = calculateCategoryData("income");
+  const expenseByCategory = calculateCategoryData("expense");
+  const maxCategoryValue = Math.max(...expenseByCategory.map((c) => c.value), 1);
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-6 md:p-10">
-      <div className="max-w-7xl mx-auto space-y-8">
-        
-        <header className="flex items-center justify-between">
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-4 md:p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight">
+            <h1 className="text-2xl md:text-3xl font-bold text-zinc-900 dark:text-zinc-50">
               Dashboard Financeiro
             </h1>
-            <p className="text-zinc-500 dark:text-zinc-400 mt-2 text-lg">
-              Resumo das suas finanças pessoais
+            <p className="text-zinc-500 dark:text-zinc-400 text-sm">
+              Resumo das suas finanças
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => router.push("/transacoes")}>
+            <Button variant="outline" size="sm" onClick={() => router.push("/transacoes")}>
               <List className="w-4 h-4 mr-2" />
               Transações
             </Button>
-            <Button variant="outline" onClick={signOut}>
-              <LogOut className="w-4 h-4 mr-2" />
-              Sair
+            <Button variant="outline" size="sm" onClick={signOut}>
+              <LogOut className="w-4 h-4" />
             </Button>
           </div>
         </header>
 
-        <div className="flex items-center gap-4">
-          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Selecione o mês" />
+        <div className="flex flex-wrap items-center gap-3">
+          <Select value={accountType} onValueChange={(v) => setAccountType(v as AccountType)}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Conta" />
             </SelectTrigger>
             <SelectContent>
-              {MONTHS.map((month) => (
-                <SelectItem key={month.value} value={month.value}>
-                  {month.label}
-                </SelectItem>
-              ))}
+              <SelectItem value="pessoal">Finanças Pessoais</SelectItem>
+              <SelectItem value="negocios">Negócios</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={period} onValueChange={(v) => { setPeriod(v as PeriodFilter); fetchData(); }}>
+            <SelectTrigger className="w-44">
+              <SelectValue placeholder="Período" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="month-to-date">Início do mês até hoje</SelectItem>
+              <SelectItem value="full-month">Mês todo</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -211,74 +227,126 @@ export default function PainelVitoria() {
           <div className="text-center py-12 text-zinc-500">Carregando dados...</div>
         ) : (
           <>
-            <Grid numItems={1} numItemsSm={2} numItemsLg={3} className="gap-6">
+            <Grid numItems={1} numItemsSm={3} className="gap-4">
               {kpiData.map((kpi, index) => (
-                <Card key={kpi.title} decoration="top" decorationColor={index === 0 ? "emerald" : index === 1 ? "rose" : "blue"} className="dark:bg-zinc-900">
-                  <Flex justifyContent="start" className="space-x-4">
-                    <div className={`p-3 rounded-xl ${index === 0 ? 'bg-emerald-100 dark:bg-emerald-900/30' : index === 1 ? 'bg-rose-100 dark:bg-rose-900/30' : 'bg-blue-100 dark:bg-blue-900/30'}`}>
-                      {index === 0 ? (
-                        <DollarSign className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
-                      ) : index === 1 ? (
-                        <Wallet className="w-6 h-6 text-rose-600 dark:text-rose-400" />
-                      ) : (
-                        <TrendingUp className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                      )}
-                    </div>
+                <Card key={kpi.title} className="dark:bg-zinc-900">
+                  <Flex justifyContent="between" alignItems="start">
                     <div>
-                      <Text>{kpi.title}</Text>
-                      <Metric className="text-2xl">{kpi.metric}</Metric>
+                      <Text className="text-zinc-500 dark:text-zinc-400">{kpi.title}</Text>
+                      <Metric className="text-2xl mt-1">{kpi.metric}</Metric>
                     </div>
-                  </Flex>
-                  <Flex className="mt-4 space-x-2">
-                    {kpi.deltaType === "increase" || kpi.deltaType === "moderateIncrease" ? (
-                      <ArrowUpRight className="w-4 h-4 text-emerald-600" />
-                    ) : (
-                      <ArrowDownRight className="w-4 h-4 text-rose-600" />
-                    )}
-                    <Text className={kpi.deltaType === "increase" || kpi.deltaType === "moderateIncrease" ? "text-emerald-600" : "text-rose-600"}>
-                      {kpi.delta}
-                    </Text>
+                    <div className={`flex items-center gap-1 text-sm ${kpi.isPositive ? "text-emerald-600" : "text-rose-600"}`}>
+                      {kpi.isPositive ? (
+                        <ArrowUpRight className="w-4 h-4" />
+                      ) : (
+                        <ArrowDownRight className="w-4 h-4" />
+                      )}
+                      <span>{kpi.variation}</span>
+                    </div>
                   </Flex>
                 </Card>
               ))}
             </Grid>
 
-            <Grid numItems={1} numItemsLg={2} className="gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Card className="dark:bg-zinc-900">
-                <Title>Fluxo de Caixa</Title>
-                <Text>Receitas vs Despesas - Últimos 6 meses</Text>
-                <AreaChart
-                  className="h-72 mt-4"
-                  data={cashFlowData}
-                  index="month"
-                  categories={["Receitas", "Despesas"]}
-                  colors={["emerald", "rose"]}
-                  valueFormatter={(value: number) =>
-                    `R$ ${Intl.NumberFormat("pt-BR").format(value)}`
-                  }
-                  yAxisWidth={80}
-                />
+                <Text className="font-semibold mb-4">Despesas por Categoria</Text>
+                <div className="space-y-3">
+                  {expenseByCategory.length === 0 ? (
+                    <p className="text-zinc-500 text-sm">Nenhuma despesa encontrada</p>
+                  ) : (
+                    expenseByCategory.map((cat) => (
+                      <div key={cat.name} className="space-y-1">
+                        <Flex justifyContent="between">
+                          <Text className="text-sm">{cat.name}</Text>
+                          <Text className="text-sm font-medium">R$ {cat.value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</Text>
+                        </Flex>
+                        <div className="h-2 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-rose-500 rounded-full"
+                            style={{ width: `${(cat.value / maxCategoryValue) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </Card>
 
               <Card className="dark:bg-zinc-900">
-                <Title>ROI por Categoria</Title>
-                <Text>Faturamento por projeto - Acumulado</Text>
-                <div className="mt-6">
-                  <BarList
-                    data={roiData}
-                    valueFormatter={(value: number) =>
-                      `R$ ${Intl.NumberFormat("pt-BR").format(value)}`
-                    }
-                    color="emerald"
-                  />
+                <Text className="font-semibold mb-4">Receitas por Categoria</Text>
+                <div className="space-y-3">
+                  {incomeByCategory.length === 0 ? (
+                    <p className="text-zinc-500 text-sm">Nenhuma receita encontrada</p>
+                  ) : (
+                    incomeByCategory.map((cat) => {
+                      const maxIncomeValue = Math.max(...incomeByCategory.map((c) => c.value), 1);
+                      return (
+                        <div key={cat.name} className="space-y-1">
+                          <Flex justifyContent="between">
+                            <Text className="text-sm">{cat.name}</Text>
+                            <Text className="text-sm font-medium">R$ {cat.value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</Text>
+                          </Flex>
+                          <div className="h-2 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-emerald-500 rounded-full"
+                              style={{ width: `${(cat.value / maxIncomeValue) * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </Card>
-            </Grid>
+            </div>
+
+            <Card className="dark:bg-zinc-900">
+              <Text className="font-semibold mb-4">Últimas Transações</Text>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Descrição</TableHead>
+                      <TableHead>Categoria</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Data</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {transactions.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-6 text-zinc-500">
+                          Nenhuma transação encontrada
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      transactions.slice(0, 10).map((t) => (
+                        <TableRow key={t.id}>
+                          <TableCell className="font-medium">{t.description}</TableCell>
+                          <TableCell>{t.categories?.name || "Sem categoria"}</TableCell>
+                          <TableCell>
+                            <Badge variant={t.type === "income" ? "default" : "destructive"} className={t.type === "income" ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100" : "bg-rose-100 text-rose-700 hover:bg-rose-100"}>
+                              {t.type === "income" ? "Receita" : "Despesa"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{new Date(t.date).toLocaleDateString("pt-BR")}</TableCell>
+                          <TableCell className={`text-right font-medium ${t.type === "income" ? "text-emerald-600" : "text-rose-600"}`}>
+                            {t.type === "income" ? "+" : "-"} R$ {t.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </Card>
           </>
         )}
 
-        <div className="text-center text-sm text-zinc-400 dark:text-zinc-500 py-4">
-          Dados atualizados em tempo real • © 2026 Dashboard Financeiro
+        <div className="text-center text-xs text-zinc-400 dark:text-zinc-500">
+          Dados atualizados em tempo real • © 2026
         </div>
       </div>
     </div>
