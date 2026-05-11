@@ -1,50 +1,154 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Card, Metric, Text, AreaChart, BarList, Title, Flex, Grid } from "@tremor/react";
 import { TrendingUp, Clock, Percent, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
-const kpiData = [
-  {
-    title: "Lucro Direto",
-    metric: "R$ 47.850",
-    metricPrev: "R$ 42.120",
-    delta: "13,6%",
-    deltaType: "increase",
-  },
-  {
-    title: "Tempo de Liberdade",
-    metric: "18 meses",
-    metricPrev: "24 meses",
-    delta: "-6 meses",
-    deltaType: "moderateIncrease",
-  },
-  {
-    title: "Eficiência de Amortização",
-    metric: "34,2%",
-    metricPrev: "28,7%",
-    delta: "+5,5pp",
-    deltaType: "increase",
-  },
-];
+interface Transaction {
+  id: number;
+  type: string;
+  amount: number;
+  category: string;
+  date: string;
+}
 
-const cashFlowData = [
-  { month: "Jan", Receitas: 18500, Despesas: 14200 },
-  { month: "Fev", Receitas: 19200, Despesas: 13800 },
-  { month: "Mar", Receitas: 22100, Despesas: 15100 },
-  { month: "Abr", Receitas: 20800, Despesas: 14500 },
-  { month: "Mai", Receitas: 24600, Despesas: 16200 },
-  { month: "Jun", Receitas: 26800, Despesas: 15800 },
-];
+interface KPIData {
+  title: string;
+  metric: string;
+  metricPrev: string;
+  delta: string;
+  deltaType: string;
+}
 
-const roiData = [
-  { name: "Montagem", value: 12400 },
-  { name: "Planejados", value: 9800 },
-  { name: "Método SIM", value: 8600 },
-  { name: "Consultoria", value: 6200 },
-  { name: "Outros", value: 4100 },
-];
+interface CashFlowMonth {
+  month: string;
+  Receitas: number;
+  Despesas: number;
+}
+
+interface ROIItem {
+  name: string;
+  value: number;
+}
 
 export default function PainelVitoria() {
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchTransactions() {
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("*")
+        .order("date", { ascending: true });
+
+      if (error) {
+        console.error("Erro ao buscar transações:", error);
+        setLoading(false);
+        return;
+      }
+
+      setTransactions(data || []);
+      setLoading(false);
+    }
+
+    fetchTransactions();
+  }, []);
+
+  const calculateKPIs = (): KPIData[] => {
+    if (transactions.length === 0) {
+      return [
+        { title: "Lucro Direto", metric: "R$ 0", metricPrev: "R$ 0", delta: "0%", deltaType: "increase" },
+        { title: "Tempo de Liberdade", metric: "0 meses", metricPrev: "0 meses", delta: "0 meses", deltaType: "moderateIncrease" },
+        { title: "Eficiência de Amortização", metric: "0%", metricPrev: "0%", delta: "0%", deltaType: "increase" },
+      ];
+    }
+
+    const incomes = transactions.filter((t) => t.type === "income").reduce((sum, t) => sum + t.amount, 0);
+    const expenses = transactions.filter((t) => t.type === "expense").reduce((sum, t) => sum + t.amount, 0);
+    const profit = incomes - expenses;
+
+    const efficiency = incomes > 0 ? ((profit / incomes) * 100).toFixed(1) : "0";
+    const monthsSaved = Math.floor(profit / 1500);
+
+    return [
+      {
+        title: "Lucro Direto",
+        metric: `R$ ${profit.toLocaleString("pt-BR")}`,
+        metricPrev: `R$ ${incomes.toLocaleString("pt-BR")}`,
+        delta: `${((profit / (incomes || 1)) * 100).toFixed(1)}%`,
+        deltaType: profit >= 0 ? "increase" : "moderateDecrease",
+      },
+      {
+        title: "Tempo de Liberdade",
+        metric: `${monthsSaved} meses`,
+        metricPrev: "0 meses",
+        delta: `+${monthsSaved} meses`,
+        deltaType: "moderateIncrease",
+      },
+      {
+        title: "Eficiência de Amortização",
+        metric: `${efficiency}%`,
+        metricPrev: "0%",
+        delta: `+${efficiency}pp`,
+        deltaType: "increase",
+      },
+    ];
+  };
+
+  const calculateCashFlow = (): CashFlowMonth[] => {
+    const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    const currentMonth = new Date().getMonth();
+    const last6Months: CashFlowMonth[] = [];
+
+    for (let i = 5; i >= 0; i--) {
+      const monthIndex = (currentMonth - i + 12) % 12;
+      const monthTransactions = transactions.filter((t) => {
+        const transMonth = new Date(t.date).getMonth();
+        return transMonth === monthIndex;
+      });
+
+      const incomes = monthTransactions.filter((t) => t.type === "income").reduce((sum, t) => sum + t.amount, 0);
+      const expenses = monthTransactions.filter((t) => t.type === "expense").reduce((sum, t) => sum + t.amount, 0);
+
+      last6Months.push({
+        month: months[monthIndex],
+        Receitas: incomes,
+        Despesas: expenses,
+      });
+    }
+
+    return last6Months;
+  };
+
+  const calculateROI = (): ROIItem[] => {
+    const categoryMap = new Map<string, number>();
+
+    transactions
+      .filter((t) => t.type === "income")
+      .forEach((t) => {
+        const current = categoryMap.get(t.category) || 0;
+        categoryMap.set(t.category, current + t.amount);
+      });
+
+    return Array.from(categoryMap.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-6 md:p-10 flex items-center justify-center">
+        <div className="text-zinc-500">Carregando dados...</div>
+      </div>
+    );
+  }
+
+  const kpiData = calculateKPIs();
+  const cashFlowData = calculateCashFlow();
+  const roiData = calculateROI();
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-6 md:p-10">
       <div className="max-w-7xl mx-auto space-y-8">
