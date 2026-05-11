@@ -6,7 +6,7 @@ import useSWR from "swr";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { Card, Metric, Text, Flex, Grid } from "@tremor/react";
-import { ArrowUpRight, ArrowDownRight, LogOut, List } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -278,10 +278,6 @@ export default function DashboardFinanceiro() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => router.push("/transacoes")}>
-              <List className="w-4 h-4 mr-2" />
-              Transações
-            </Button>
             <Button variant="outline" size="sm" onClick={signOut}>
               <LogOut className="w-4 h-4" />
             </Button>
@@ -399,10 +395,10 @@ export default function DashboardFinanceiro() {
             </div>
 
             <Card className="dark:bg-zinc-900">
-              <Text className="font-semibold mb-4">Últimas Transações</Text>
-              <div className="overflow-x-auto">
+              <Text className="font-semibold mb-4">Transações do Período</Text>
+              <div className="overflow-x-auto max-h-96 overflow-y-auto">
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="sticky top-0 bg-zinc-50 dark:bg-zinc-900">
                     <TableRow>
                       <TableHead>Descrição</TableHead>
                       <TableHead>Categoria</TableHead>
@@ -419,7 +415,7 @@ export default function DashboardFinanceiro() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      transactions.slice(0, 10).map((t) => (
+                      transactions.map((t) => (
                         <TableRow key={t.id}>
                           <TableCell className="font-medium">{t.description}</TableCell>
                           <TableCell>{t.categories?.name || "Sem categoria"}</TableCell>
