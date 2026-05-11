@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import useSWR from "swr";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { Card, Metric, Text, Flex, Grid } from "@tremor/react";
-import { ArrowUpRight, ArrowDownRight, LogOut, List, TrendingUp, TrendingDown, Wallet } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, LogOut, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -42,18 +44,128 @@ interface KPIData {
   isPositive: boolean;
 }
 
+interface DataResponse {
+  current: Transaction[];
+  previous: Transaction[];
+}
+
 type PeriodFilter = "month-to-date" | "full-month";
 type AccountType = "pessoal" | "negocios";
+
+const fetcher = async (key: string): Promise<DataResponse> => {
+  const [accountType, period] = key.split("|");
+  
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+
+  const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+  const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+
+  const currentStart = `${currentYear}-${String(currentMonth).padStart(2, "0")}-01`;
+  const currentEnd = period === "month-to-date"
+    ? now.toISOString().split("T")[0]
+    : `${currentYear}-${String(currentMonth).padStart(2, "0")}-31`;
+
+  const prevStart = `${prevYear}-${String(prevMonth).padStart(2, "0")}-01`;
+  const prevEnd = `${prevYear}-${String(prevMonth).padStart(2, "0")}-31`;
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const [currentRes, prevRes] = await Promise.all([
+    supabase
+      .from("transactions")
+      .select("*, categories(name)")
+      .eq("user_id", user?.id)
+      .eq("account_type", accountType)
+      .gte("date", currentStart)
+      .lte("date", currentEnd)
+      .order("date", { ascending: false }),
+    supabase
+      .from("transactions")
+      .select("*, categories(name)")
+      .eq("user_id", user?.id)
+      .eq("account_type", accountType)
+      .gte("date", prevStart)
+      .lte("date", prevEnd)
+      .order("date", { ascending: false }),
+  ]);
+
+  return {
+    current: currentRes.data || [],
+    previous: prevRes.data || [],
+  };
+};
+
+function SkeletonCard() {
+  return (
+    <Card className="dark:bg-zinc-900">
+      <Flex justifyContent="between" alignItems="start">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-8 w-32" />
+        </div>
+        <Skeleton className="h-4 w-16" />
+      </Flex>
+    </Card>
+  );
+}
+
+function SkeletonChart() {
+  return (
+    <Card className="dark:bg-zinc-900">
+      <Skeleton className="h-6 w-40 mb-4" />
+      <div className="space-y-3">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="space-y-1">
+            <Flex justifyContent="between">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-20" />
+            </Flex>
+            <Skeleton className="h-2 w-full" />
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function SkeletonTable() {
+  return (
+    <Card className="dark:bg-zinc-900">
+      <Skeleton className="h-6 w-40 mb-4" />
+      <div className="space-y-2">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="flex items-center gap-4">
+            <Skeleton className="h-4 flex-1" />
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-4 w-24" />
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
 
 export default function DashboardFinanceiro() {
   const { user, loading: authLoading, signOut } = useAuth();
   const router = useRouter();
 
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [prevMonthTransactions, setPrevMonthTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [accountType, setAccountType] = useState<AccountType>("pessoal");
+  const [accountType, setAccountType] = useState<AccountType>("negocios");
   const [period, setPeriod] = useState<PeriodFilter>("month-to-date");
+
+  const cacheKey = useMemo(() => `${accountType}|${period}`, [accountType, period]);
+
+  const { data, isLoading, error } = useSWR<DataResponse>(
+    user ? cacheKey : null,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 60000,
+    }
+  );
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -61,66 +173,37 @@ export default function DashboardFinanceiro() {
     }
   }, [user, authLoading, router]);
 
-  useEffect(() => {
-    if (user) {
-      fetchData();
-    }
-  }, [user, accountType]);
+  const handleAccountTypeChange = (value: string) => {
+    setAccountType(value as AccountType);
+  };
 
-  async function fetchData() {
-    setLoading(true);
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1;
-
-    const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
-    const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
-
-    const currentStart = `${currentYear}-${String(currentMonth).padStart(2, "0")}-01`;
-    const currentEnd = period === "month-to-date"
-      ? now.toISOString().split("T")[0]
-      : `${currentYear}-${String(currentMonth).padStart(2, "0")}-31`;
-
-    const prevStart = `${prevYear}-${String(prevMonth).padStart(2, "0")}-01`;
-    const prevEnd = `${prevYear}-${String(prevMonth).padStart(2, "0")}-31`;
-
-    const [currentRes, prevRes] = await Promise.all([
-      supabase
-        .from("transactions")
-        .select("*, categories(name)")
-        .eq("user_id", user?.id)
-        .eq("account_type", accountType)
-        .gte("date", currentStart)
-        .lte("date", currentEnd)
-        .order("date", { ascending: false }),
-      supabase
-        .from("transactions")
-        .select("*, categories(name)")
-        .eq("user_id", user?.id)
-        .eq("account_type", accountType)
-        .gte("date", prevStart)
-        .lte("date", prevEnd)
-        .order("date", { ascending: false }),
-    ]);
-
-    if (!currentRes.error) setTransactions(currentRes.data || []);
-    if (!prevRes.error) setPrevMonthTransactions(prevRes.data || []);
-    setLoading(false);
-  }
+  const handlePeriodChange = (value: string) => {
+    setPeriod(value as PeriodFilter);
+  };
 
   const calculateKPIs = (): KPIData[] => {
-    const currentIncome = transactions
+    if (!data) {
+      return [
+        { title: "Receitas", metric: "R$ 0", variation: "0%", isPositive: true },
+        { title: "Despesas", metric: "R$ 0", variation: "0%", isPositive: true },
+        { title: "Saldo", metric: "R$ 0", variation: "0%", isPositive: true },
+      ];
+    }
+
+    const { current, previous } = data;
+
+    const currentIncome = current
       .filter((t) => t.type === "income")
       .reduce((sum, t) => sum + t.amount, 0);
-    const currentExpense = transactions
+    const currentExpense = current
       .filter((t) => t.type === "expense")
       .reduce((sum, t) => sum + t.amount, 0);
     const currentBalance = currentIncome - currentExpense;
 
-    const prevIncome = prevMonthTransactions
+    const prevIncome = previous
       .filter((t) => t.type === "income")
       .reduce((sum, t) => sum + t.amount, 0);
-    const prevExpense = prevMonthTransactions
+    const prevExpense = previous
       .filter((t) => t.type === "expense")
       .reduce((sum, t) => sum + t.amount, 0);
 
@@ -153,8 +236,10 @@ export default function DashboardFinanceiro() {
   };
 
   const calculateCategoryData = (type: "income" | "expense"): CategoryData[] => {
+    if (!data) return [];
+    
     const categoryMap = new Map<string, number>();
-    transactions
+    data.current
       .filter((t) => t.type === type)
       .forEach((t) => {
         const catName = t.categories?.name || "Sem categoria";
@@ -177,6 +262,7 @@ export default function DashboardFinanceiro() {
   const kpiData = calculateKPIs();
   const incomeByCategory = calculateCategoryData("income");
   const expenseByCategory = calculateCategoryData("expense");
+  const transactions = data?.current || [];
   const maxCategoryValue = Math.max(...expenseByCategory.map((c) => c.value), 1);
 
   return (
@@ -203,7 +289,7 @@ export default function DashboardFinanceiro() {
         </header>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Select value={accountType} onValueChange={(v) => setAccountType(v as AccountType)}>
+          <Select value={accountType} onValueChange={handleAccountTypeChange}>
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Conta" />
             </SelectTrigger>
@@ -212,7 +298,7 @@ export default function DashboardFinanceiro() {
               <SelectItem value="negocios">Negócios</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={period} onValueChange={(v) => { setPeriod(v as PeriodFilter); fetchData(); }}>
+          <Select value={period} onValueChange={handlePeriodChange}>
             <SelectTrigger className="w-44">
               <SelectValue placeholder="Período" />
             </SelectTrigger>
@@ -223,8 +309,19 @@ export default function DashboardFinanceiro() {
           </Select>
         </div>
 
-        {loading ? (
-          <div className="text-center py-12 text-zinc-500">Carregando dados...</div>
+        {isLoading ? (
+          <>
+            <Grid numItems={1} numItemsSm={3} className="gap-4">
+              {[1, 2, 3].map((i) => <SkeletonCard key={i} />)}
+            </Grid>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <SkeletonChart />
+              <SkeletonChart />
+            </div>
+            <SkeletonTable />
+          </>
+        ) : error ? (
+          <div className="text-center py-12 text-red-500">Erro ao carregar dados</div>
         ) : (
           <>
             <Grid numItems={1} numItemsSm={3} className="gap-4">
