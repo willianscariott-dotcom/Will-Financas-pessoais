@@ -1,65 +1,131 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { Card, Metric, Text, AreaChart, BarList, Title, Flex, Grid } from "@tremor/react";
+import { TrendingUp, Clock, Percent, ArrowUpRight, ArrowDownRight } from "lucide-react";
+
+const kpiData = [
+  {
+    title: "Lucro Direto",
+    metric: "R$ 47.850",
+    metricPrev: "R$ 42.120",
+    delta: "13,6%",
+    deltaType: "increase",
+  },
+  {
+    title: "Tempo de Liberdade",
+    metric: "18 meses",
+    metricPrev: "24 meses",
+    delta: "-6 meses",
+    deltaType: "moderateIncrease",
+  },
+  {
+    title: "Eficiência de Amortização",
+    metric: "34,2%",
+    metricPrev: "28,7%",
+    delta: "+5,5pp",
+    deltaType: "increase",
+  },
+];
+
+const cashFlowData = [
+  { month: "Jan", Receitas: 18500, Despesas: 14200 },
+  { month: "Fev", Receitas: 19200, Despesas: 13800 },
+  { month: "Mar", Receitas: 22100, Despesas: 15100 },
+  { month: "Abr", Receitas: 20800, Despesas: 14500 },
+  { month: "Mai", Receitas: 24600, Despesas: 16200 },
+  { month: "Jun", Receitas: 26800, Despesas: 15800 },
+];
+
+const roiData = [
+  { name: "Montagem", value: 12400 },
+  { name: "Planejados", value: 9800 },
+  { name: "Método SIM", value: 8600 },
+  { name: "Consultoria", value: 6200 },
+  { name: "Outros", value: 4100 },
+];
+
+export default function PainelVitoria() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-6 md:p-10">
+      <div className="max-w-7xl mx-auto space-y-8">
+        
+        <header className="mb-8">
+          <h1 className="text-4xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight">
+            Painel de Vitória
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-zinc-500 dark:text-zinc-400 mt-2 text-lg">
+            Acompanhe sua jornada para vencer o banco
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+        </header>
+
+        <Grid numItems={1} numItemsSm={2} numItemsLg={3} className="gap-6">
+          {kpiData.map((kpi, index) => (
+            <Card key={kpi.title} decoration="top" decorationColor="emerald" className="dark:bg-zinc-900">
+              <Flex justifyContent="start" className="space-x-4">
+                <div className={`p-3 rounded-xl ${index === 0 ? 'bg-emerald-100 dark:bg-emerald-900/30' : index === 1 ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-amber-100 dark:bg-amber-900/30'}`}>
+                  {index === 0 ? (
+                    <TrendingUp className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                  ) : index === 1 ? (
+                    <Clock className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                  ) : (
+                    <Percent className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                  )}
+                </div>
+                <div>
+                  <Text>{kpi.title}</Text>
+                  <Metric className="text-2xl">{kpi.metric}</Metric>
+                </div>
+              </Flex>
+              <Flex className="mt-4 space-x-2">
+                {kpi.deltaType === "increase" || kpi.deltaType === "moderateIncrease" ? (
+                  <ArrowUpRight className="w-4 h-4 text-emerald-600" />
+                ) : (
+                  <ArrowDownRight className="w-4 h-4 text-rose-600" />
+                )}
+                <Text className={kpi.deltaType === "increase" || kpi.deltaType === "moderateIncrease" ? "text-emerald-600" : "text-rose-600"}>
+                  {kpi.delta} vs período anterior
+                </Text>
+              </Flex>
+            </Card>
+          ))}
+        </Grid>
+
+        <Grid numItems={1} numItemsLg={2} className="gap-6">
+          <Card className="dark:bg-zinc-900">
+            <Title>Fluxo de Caixa</Title>
+            <Text>Receitas vs Despesas - Últimos 6 meses</Text>
+            <AreaChart
+              className="h-72 mt-4"
+              data={cashFlowData}
+              index="month"
+              categories={["Receitas", "Despesas"]}
+              colors={["emerald", "rose"]}
+              valueFormatter={(value: number) =>
+                `R$ ${Intl.NumberFormat("pt-BR").format(value)}`
+              }
+              yAxisWidth={80}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </Card>
+
+          <Card className="dark:bg-zinc-900">
+            <Title>ROI por Categoria</Title>
+            <Text>Faturamento por projeto - Acumulado</Text>
+            <div className="mt-6">
+              <BarList
+                data={roiData}
+                valueFormatter={(value: number) =>
+                  `R$ ${Intl.NumberFormat("pt-BR").format(value)}`
+                }
+                color="emerald"
+              />
+            </div>
+          </Card>
+        </Grid>
+
+        <div className="text-center text-sm text-zinc-400 dark:text-zinc-500 py-4">
+          Dados atualizados em tempo real • © 2026 Painel de Vitória
         </div>
-      </main>
+      </div>
     </div>
   );
 }
