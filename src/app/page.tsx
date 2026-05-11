@@ -1,9 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, Metric, Text, AreaChart, BarList, Title, Flex, Grid } from "@tremor/react";
-import { TrendingUp, Clock, Percent, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { useMonthFilter, MONTHS } from "@/hooks/useMonthFilter";
 import { supabase } from "@/lib/supabase";
+import { Card, Metric, Text, AreaChart, BarList, Title, Flex, Grid } from "@tremor/react";
+import { TrendingUp, Clock, Percent, ArrowUpRight, ArrowDownRight, LogOut, List } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Transaction {
   id: number;
@@ -11,6 +16,7 @@ interface Transaction {
   amount: number;
   category: string;
   date: string;
+  user_id: string;
 }
 
 interface KPIData {
@@ -33,28 +39,43 @@ interface ROIItem {
 }
 
 export default function PainelVitoria() {
+  const { user, loading: authLoading, signOut } = useAuth();
+  const router = useRouter();
+  const { selectedMonth, setSelectedMonth } = useMonthFilter();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchTransactions() {
-      const { data, error } = await supabase
-        .from("transactions")
-        .select("*")
-        .order("date", { ascending: true });
-
-      if (error) {
-        console.error("Erro ao buscar transações:", error);
-        setLoading(false);
-        return;
-      }
-
-      setTransactions(data || []);
-      setLoading(false);
+    if (!authLoading && !user) {
+      router.push("/login");
     }
+  }, [user, authLoading, router]);
 
-    fetchTransactions();
-  }, []);
+  useEffect(() => {
+    if (user && selectedMonth) {
+      fetchTransactions();
+    }
+  }, [user, selectedMonth]);
+
+  async function fetchTransactions() {
+    setLoading(true);
+    const [year, month] = selectedMonth.split("-");
+    const startDate = `${year}-${month}-01`;
+    const endDate = `${year}-${month}-31`;
+
+    const { data, error } = await supabase
+      .from("transactions")
+      .select("*")
+      .eq("user_id", user?.id)
+      .gte("date", startDate)
+      .lte("date", endDate)
+      .order("date", { ascending: true });
+
+    if (!error) {
+      setTransactions(data || []);
+    }
+    setLoading(false);
+  }
 
   const calculateKPIs = (): KPIData[] => {
     if (transactions.length === 0) {
@@ -137,12 +158,12 @@ export default function PainelVitoria() {
       .sort((a, b) => b.value - a.value);
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-6 md:p-10 flex items-center justify-center">
-        <div className="text-zinc-500">Carregando dados...</div>
-      </div>
-    );
+  if (authLoading) {
+    return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
+  }
+
+  if (!user) {
+    return null;
   }
 
   const kpiData = calculateKPIs();
@@ -153,78 +174,111 @@ export default function PainelVitoria() {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-6 md:p-10">
       <div className="max-w-7xl mx-auto space-y-8">
         
-        <header className="mb-8">
-          <h1 className="text-4xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight">
-            Painel de Vitória
-          </h1>
-          <p className="text-zinc-500 dark:text-zinc-400 mt-2 text-lg">
-            Acompanhe sua jornada para vencer o banco
-          </p>
+        <header className="flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight">
+              Painel de Vitória
+            </h1>
+            <p className="text-zinc-500 dark:text-zinc-400 mt-2 text-lg">
+              Acompanhe sua jornada para vencer o banco
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => router.push("/transacoes")}>
+              <List className="w-4 h-4 mr-2" />
+              Transações
+            </Button>
+            <Button variant="outline" onClick={signOut}>
+              <LogOut className="w-4 h-4 mr-2" />
+              Sair
+            </Button>
+          </div>
         </header>
 
-        <Grid numItems={1} numItemsSm={2} numItemsLg={3} className="gap-6">
-          {kpiData.map((kpi, index) => (
-            <Card key={kpi.title} decoration="top" decorationColor="emerald" className="dark:bg-zinc-900">
-              <Flex justifyContent="start" className="space-x-4">
-                <div className={`p-3 rounded-xl ${index === 0 ? 'bg-emerald-100 dark:bg-emerald-900/30' : index === 1 ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-amber-100 dark:bg-amber-900/30'}`}>
-                  {index === 0 ? (
-                    <TrendingUp className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
-                  ) : index === 1 ? (
-                    <Clock className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                  ) : (
-                    <Percent className="w-6 h-6 text-amber-600 dark:text-amber-400" />
-                  )}
-                </div>
-                <div>
-                  <Text>{kpi.title}</Text>
-                  <Metric className="text-2xl">{kpi.metric}</Metric>
-                </div>
-              </Flex>
-              <Flex className="mt-4 space-x-2">
-                {kpi.deltaType === "increase" || kpi.deltaType === "moderateIncrease" ? (
-                  <ArrowUpRight className="w-4 h-4 text-emerald-600" />
-                ) : (
-                  <ArrowDownRight className="w-4 h-4 text-rose-600" />
-                )}
-                <Text className={kpi.deltaType === "increase" || kpi.deltaType === "moderateIncrease" ? "text-emerald-600" : "text-rose-600"}>
-                  {kpi.delta} vs período anterior
-                </Text>
-              </Flex>
-            </Card>
-          ))}
-        </Grid>
+        <div className="flex items-center gap-4">
+          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Selecione o mês" />
+            </SelectTrigger>
+            <SelectContent>
+              {MONTHS.map((month) => (
+                <SelectItem key={month.value} value={month.value}>
+                  {month.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-        <Grid numItems={1} numItemsLg={2} className="gap-6">
-          <Card className="dark:bg-zinc-900">
-            <Title>Fluxo de Caixa</Title>
-            <Text>Receitas vs Despesas - Últimos 6 meses</Text>
-            <AreaChart
-              className="h-72 mt-4"
-              data={cashFlowData}
-              index="month"
-              categories={["Receitas", "Despesas"]}
-              colors={["emerald", "rose"]}
-              valueFormatter={(value: number) =>
-                `R$ ${Intl.NumberFormat("pt-BR").format(value)}`
-              }
-              yAxisWidth={80}
-            />
-          </Card>
+        {loading ? (
+          <div className="text-center py-12 text-zinc-500">Carregando dados...</div>
+        ) : (
+          <>
+            <Grid numItems={1} numItemsSm={2} numItemsLg={3} className="gap-6">
+              {kpiData.map((kpi, index) => (
+                <Card key={kpi.title} decoration="top" decorationColor="emerald" className="dark:bg-zinc-900">
+                  <Flex justifyContent="start" className="space-x-4">
+                    <div className={`p-3 rounded-xl ${index === 0 ? 'bg-emerald-100 dark:bg-emerald-900/30' : index === 1 ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-amber-100 dark:bg-amber-900/30'}`}>
+                      {index === 0 ? (
+                        <TrendingUp className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                      ) : index === 1 ? (
+                        <Clock className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                      ) : (
+                        <Percent className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                      )}
+                    </div>
+                    <div>
+                      <Text>{kpi.title}</Text>
+                      <Metric className="text-2xl">{kpi.metric}</Metric>
+                    </div>
+                  </Flex>
+                  <Flex className="mt-4 space-x-2">
+                    {kpi.deltaType === "increase" || kpi.deltaType === "moderateIncrease" ? (
+                      <ArrowUpRight className="w-4 h-4 text-emerald-600" />
+                    ) : (
+                      <ArrowDownRight className="w-4 h-4 text-rose-600" />
+                    )}
+                    <Text className={kpi.deltaType === "increase" || kpi.deltaType === "moderateIncrease" ? "text-emerald-600" : "text-rose-600"}>
+                      {kpi.delta} vs período anterior
+                    </Text>
+                  </Flex>
+                </Card>
+              ))}
+            </Grid>
 
-          <Card className="dark:bg-zinc-900">
-            <Title>ROI por Categoria</Title>
-            <Text>Faturamento por projeto - Acumulado</Text>
-            <div className="mt-6">
-              <BarList
-                data={roiData}
-                valueFormatter={(value: number) =>
-                  `R$ ${Intl.NumberFormat("pt-BR").format(value)}`
-                }
-                color="emerald"
-              />
-            </div>
-          </Card>
-        </Grid>
+            <Grid numItems={1} numItemsLg={2} className="gap-6">
+              <Card className="dark:bg-zinc-900">
+                <Title>Fluxo de Caixa</Title>
+                <Text>Receitas vs Despesas - Últimos 6 meses</Text>
+                <AreaChart
+                  className="h-72 mt-4"
+                  data={cashFlowData}
+                  index="month"
+                  categories={["Receitas", "Despesas"]}
+                  colors={["emerald", "rose"]}
+                  valueFormatter={(value: number) =>
+                    `R$ ${Intl.NumberFormat("pt-BR").format(value)}`
+                  }
+                  yAxisWidth={80}
+                />
+              </Card>
+
+              <Card className="dark:bg-zinc-900">
+                <Title>ROI por Categoria</Title>
+                <Text>Faturamento por projeto - Acumulado</Text>
+                <div className="mt-6">
+                  <BarList
+                    data={roiData}
+                    valueFormatter={(value: number) =>
+                      `R$ ${Intl.NumberFormat("pt-BR").format(value)}`
+                    }
+                    color="emerald"
+                  />
+                </div>
+              </Card>
+            </Grid>
+          </>
+        )}
 
         <div className="text-center text-sm text-zinc-400 dark:text-zinc-500 py-4">
           Dados atualizados em tempo real • © 2026 Painel de Vitória
