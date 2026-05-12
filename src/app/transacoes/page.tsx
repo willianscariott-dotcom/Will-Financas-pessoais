@@ -36,12 +36,12 @@ interface Transaction {
 }
 
 interface Account {
-  id: number;
+  id: string;
   name: string;
 }
 
 interface Subcategory {
-  id: number;
+  id: string;
   name: string;
   category_type: string;
 }
@@ -101,8 +101,8 @@ const fetcher = async (key: string): Promise<{ data: Transaction[] }> => {
   return { data: res.data || [] };
 };
 
-function generateInstallments(description: string, amount: number, dateStr: string, type: "income" | "expense", accountId: number | null, totalInstallments: number, userId: string) {
-  const baseDate = new Date(dateStr);
+function generateInstallments(description: string, amount: number, dateStr: string, type: "income" | "expense", accountId: string | null, totalInstallments: number, userId: string) {
+  const baseDate = new Date(dateStr + "T12:00:00");
   const year = baseDate.getFullYear();
   const month = baseDate.getMonth() + 1;
   const day = baseDate.getDate();
@@ -252,8 +252,8 @@ export default function TransacoesPage() {
 
     try {
       if (newTransaction.isTransfer && newTransaction.fromAccountId && newTransaction.toAccountId) {
-        const fromAccountId = parseInt(newTransaction.fromAccountId);
-        const toAccountId = parseInt(newTransaction.toAccountId);
+        const fromAccountId = newTransaction.fromAccountId;
+        const toAccountId = newTransaction.toAccountId;
         
         const expenseInstallments = generateInstallments(
           `Transferência para ${accounts.find(a => a.id === toAccountId)?.name || "conta"}`,
@@ -283,22 +283,20 @@ export default function TransacoesPage() {
           return;
         }
       } else {
-        const accountId = newTransaction.fromAccountId ? parseInt(newTransaction.fromAccountId) : null;
-        
         const installments = generateInstallments(
           newTransaction.description,
           cleanAmount,
           newTransaction.date,
           selectedType as "income" | "expense",
-          accountId,
+          newTransaction.fromAccountId || null,
           repeatMonths,
           user.id
         );
 
         const payload = installments.map(inst => ({
           ...inst,
-          account_id: selectedAccount,
-          subcategory_id: selectedSubcategory
+          account_id: newTransaction.fromAccountId || null,
+          subcategory_id: newTransaction.subcategoryId || null
         }));
 
         const { error: insertError } = await supabase.from("pessoal_transactions").insert(payload);
@@ -466,7 +464,7 @@ export default function TransacoesPage() {
                   <Select value={newTransaction.fromAccountId} onValueChange={(v) => setNewTransaction({ ...newTransaction, fromAccountId: v })}>
                     <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
-                      {accounts.map((acc) => <SelectItem key={acc.id} value={acc.id.toString()}>{acc.name}</SelectItem>)}
+                      {accounts.map((acc) => <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -475,7 +473,7 @@ export default function TransacoesPage() {
                   <Select value={newTransaction.toAccountId} onValueChange={(v) => setNewTransaction({ ...newTransaction, toAccountId: v })}>
                     <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
-                      {accounts.map((acc) => <SelectItem key={acc.id} value={acc.id.toString()}>{acc.name}</SelectItem>)}
+                      {accounts.map((acc) => <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -487,7 +485,7 @@ export default function TransacoesPage() {
                   <Select value={newTransaction.fromAccountId} onValueChange={(v) => setNewTransaction({ ...newTransaction, fromAccountId: v })}>
                     <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
-                      {accounts.map((acc) => <SelectItem key={acc.id} value={acc.id.toString()}>{acc.name}</SelectItem>)}
+                      {accounts.map((acc) => <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -497,7 +495,7 @@ export default function TransacoesPage() {
                     <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
                       {subcategories.filter(sc => newTransaction.type === "income" ? sc.category_type === "income" : sc.category_type === "expense").map((sc) => (
-                        <SelectItem key={sc.id} value={sc.id.toString()}>{sc.name}</SelectItem>
+                        <SelectItem key={sc.id} value={sc.id}>{sc.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
