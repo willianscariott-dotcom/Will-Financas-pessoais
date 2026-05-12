@@ -39,7 +39,7 @@ interface Account {
   name: string;
 }
 
-type FilterType = "all" | "expense" | "income" | "transfer";
+type FilterType = "todas" | "expense" | "income" | "transfer";
 type PeriodFilter = "full-month" | "month-to-date" | "today-to-end";
 
 function getMonthRange(year: number, month: number): { start: string; end: string } {
@@ -133,7 +133,7 @@ export default function TransacoesPage() {
   const router = useRouter();
 
   const now = new Date();
-  const [filterType, setFilterType] = useState<FilterType>("all");
+  const [filterType, setFilterType] = useState<FilterType>("todas");
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("full-month");
   const [selectedYear, setSelectedYear] = useState(now.getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState((now.getMonth() + 1).toString());
@@ -282,11 +282,7 @@ export default function TransacoesPage() {
 
   const transactions = data?.data || [];
   
-  const filteredTransactions = filterType === "all" 
-    ? transactions 
-    : filterType === "transfer"
-    ? transactions.filter(t => t.type === "transfer")
-    : transactions.filter(t => t.type === filterType);
+  const transacoesFiltradas = transactions.filter(t => (!filterType || filterType === "todas") ? true : t.type === filterType);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 p-4 md:p-8">
@@ -325,8 +321,8 @@ export default function TransacoesPage() {
             </SelectContent>
           </Select>
 
-          <ToggleGroup type="single" value={filterType} onValueChange={(v) => v && setFilterType(v as FilterType)} className="bg-white dark:bg-zinc-900 rounded-lg p-1 border border-zinc-200 dark:border-zinc-800">
-            <ToggleGroupItem value="all" className="px-3 py-1">Todas</ToggleGroupItem>
+          <ToggleGroup type="single" value={filterType} onValueChange={(v) => setFilterType(v as FilterType || "todas")} className="bg-white dark:bg-zinc-900 rounded-lg p-1 border border-zinc-200 dark:border-zinc-800">
+            <ToggleGroupItem value="todas" className="px-3 py-1">Todas</ToggleGroupItem>
             <ToggleGroupItem value="expense" className="px-3 py-1">Despesas</ToggleGroupItem>
             <ToggleGroupItem value="income" className="px-3 py-1">Receitas</ToggleGroupItem>
             <ToggleGroupItem value="transfer" className="px-3 py-1">Transferências</ToggleGroupItem>
@@ -356,14 +352,14 @@ export default function TransacoesPage() {
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8">Carregando...</TableCell>
                 </TableRow>
-              ) : filteredTransactions.length === 0 ? (
+              ) : transacoesFiltradas.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-zinc-500">
                     Nenhuma transação encontrada
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredTransactions.map((t) => {
+                transacoesFiltradas.map((t) => {
                   const descriptionWithInstallment = t.installment_current && t.installment_total
                     ? `${t.description} (${t.installment_current}/${t.installment_total})`
                     : t.description;

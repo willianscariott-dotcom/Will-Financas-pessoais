@@ -75,6 +75,26 @@ const fetcher = async (key: string): Promise<Transaction[]> => {
   return data || [];
 };
 
+const CustomTooltip = (props: any) => {
+  const { payload, active } = props;
+  if (!active || !payload) return null;
+  return (
+    <div className="w-56 rounded-tremor-default border border-tremor-border bg-white dark:bg-slate-900 p-2 text-tremor-default shadow-tremor-dropdown">
+      {payload.map((category: any, idx: number) => (
+        <div key={idx} className="flex flex-1 space-x-2.5 mb-2 last:mb-0">
+          <div className={`flex w-1 flex-col bg-${category.color}-500 rounded`} style={{ backgroundColor: category.color.startsWith('#') ? category.color : undefined }} />
+          <div className="space-y-1">
+            <p className="text-slate-800 dark:text-slate-200">{category.dataKey}</p>
+            <p className="font-medium text-slate-900 dark:text-slate-100">
+              R$ {Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2 }).format(category.value)}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const SidebarItem = ({ icon: Icon, label, href, active = false }: { icon: any; label: string; href?: string; active?: boolean }) => {
   const Component = href ? Link : "button";
   return (
@@ -287,16 +307,17 @@ export default function RelatoriosPage() {
                   <Title className="text-zinc-900 dark:text-zinc-50">Evolução do Fluxo de Caixa</Title>
                   <Text className="mb-6">Receitas vs Despesas ao longo do tempo</Text>
                   <AreaChart
-                    className="h-80 mt-4 [&_.recharts-tooltip-cursor]:fill-zinc-100 dark:[&_.recharts-tooltip-cursor]:fill-zinc-800 [&_.tremor-custom-tooltip]:text-slate-800 dark:[&_.tremor-custom-tooltip]:text-slate-200"
+                    className="h-80 mt-4 [&_.recharts-tooltip-cursor]:fill-zinc-100 dark:[&_.recharts-tooltip-cursor]:fill-zinc-800"
                     data={cashFlowData}
                     index="month"
                     categories={["Receitas", "Despesas"]}
-                    colors={["emerald", "red"]}
+                    colors={["#10b981", "#ef4444"]}
                     valueFormatter={(value: number) =>
                       `R$ ${Intl.NumberFormat("pt-BR").format(value)}`
                     }
                     showLegend={true}
                     yAxisWidth={80}
+                    customTooltip={CustomTooltip}
                   />
                 </Card>
 
@@ -304,17 +325,18 @@ export default function RelatoriosPage() {
                   <Title className="text-zinc-900 dark:text-zinc-50">Consumo por Categoria</Title>
                   <Text className="mb-6">Onde seu dinheiro foi gasto no período</Text>
                   <BarChart
-                    className="h-80 mt-4 [&_.recharts-tooltip-cursor]:fill-zinc-100 dark:[&_.recharts-tooltip-cursor]:fill-zinc-800 [&_.tremor-custom-tooltip]:text-slate-800 dark:[&_.tremor-custom-tooltip]:text-slate-200"
+                    className="h-80 mt-4 [&_.recharts-tooltip-cursor]:fill-zinc-100 dark:[&_.recharts-tooltip-cursor]:fill-zinc-800"
                     data={expensesByCategory}
                     index="name"
                     categories={["Valor"]}
-                    colors={["red"]}
+                    colors={["#ef4444"]}
                     valueFormatter={(value: number) =>
                       `R$ ${Intl.NumberFormat("pt-BR").format(value)}`
                     }
                     layout="vertical"
                     yAxisWidth={120}
                     showLegend={false}
+                    customTooltip={CustomTooltip}
                   />
                 </Card>
               </Grid>
