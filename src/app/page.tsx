@@ -28,10 +28,7 @@ interface Transaction {
   type: "income" | "expense";
   amount: number;
   date: string;
-  account_type: string | null;
-  categories: {
-    name: string;
-  } | null;
+  category: string | null;
 }
 
 interface CategoryData {
@@ -80,16 +77,16 @@ const fetcher = async (key: string): Promise<DataResponse> => {
   const { data: { user } } = await supabase.auth.getUser();
 
   const currentRes = await supabase
-    .from("transactions")
-    .select("*, categories(name)")
+    .from("pessoal")
+    .select("*")
     .eq("user_id", user?.id)
     .gte("date", currentRange.start)
     .lte("date", currentRange.end)
     .order("date", { ascending: false });
 
   const prevRes = await supabase
-    .from("transactions")
-    .select("*, categories(name)")
+    .from("pessoal")
+    .select("*")
     .eq("user_id", user?.id)
     .gte("date", prevRange.start)
     .lte("date", prevRange.end)
@@ -185,26 +182,6 @@ export default function DashboardFinanceiro() {
       revalidateOnFocus: false,
     }
   );
-
-  const updateClassification = async (transactionId: number, newType: string) => {
-    const previousData = data;
-    
-    mutate({
-      current: data?.current.map(t => 
-        t.id === transactionId ? { ...t, account_type: newType } : t
-      ) || [],
-      previous: data?.previous || []
-    }, false);
-
-    const { error } = await supabase
-      .from("transactions")
-      .update({ account_type: newType })
-      .eq("id", transactionId);
-
-    if (error) {
-      mutate(previousData, false);
-    }
-  };
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -302,7 +279,7 @@ export default function DashboardFinanceiro() {
     transactions
       .filter((t) => t.type === type)
       .forEach((t) => {
-        const catName = t.categories?.name || "Sem categoria";
+        const catName = t.category || "Sem categoria";
         const current = categoryMap.get(catName) || 0;
         categoryMap.set(catName, current + t.amount);
       });
@@ -467,13 +444,12 @@ export default function DashboardFinanceiro() {
                           <TableHead>Tipo</TableHead>
                           <TableHead>Data</TableHead>
                           <TableHead className="text-right">Valor</TableHead>
-                          <TableHead>Classificação</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
 {transactions.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-zinc-500">
+                        <TableCell colSpan={5} className="text-center py-8 text-zinc-500">
                           Nenhuma transação encontrada
                         </TableCell>
                       </TableRow>
@@ -481,7 +457,7 @@ export default function DashboardFinanceiro() {
                       transactions.map((t) => (
                         <TableRow key={t.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50">
                           <TableCell className="font-medium">{t.description}</TableCell>
-                          <TableCell>{t.categories?.name || "Sem categoria"}</TableCell>
+                          <TableCell>{t.category || "Sem categoria"}</TableCell>
                           <TableCell>
                             <Badge className={t.type === "income" 
                               ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100" 
@@ -493,34 +469,6 @@ export default function DashboardFinanceiro() {
                           <TableCell>{new Date(t.date).toLocaleDateString("pt-BR")}</TableCell>
                           <TableCell className={`text-right font-semibold ${t.type === "income" ? "text-emerald-600" : "text-rose-600"}`}>
                             {t.type === "income" ? "+" : "-"} R$ {t.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex gap-1">
-                              <Button 
-                                variant={t.account_type === "pessoal" ? "default" : "outline"} 
-                                size="sm" 
-                                className={`h-7 text-xs px-2 ${t.account_type === "pessoal" ? "bg-blue-500 hover:bg-blue-600" : ""}`}
-                                onClick={() => updateClassification(t.id, "pessoal")}
-                              >
-                                Pessoal
-                              </Button>
-                              <Button 
-                                variant={t.account_type === "negocios" ? "default" : "outline"} 
-                                size="sm" 
-                                className={`h-7 text-xs px-2 ${t.account_type === "negocios" ? "bg-purple-500 hover:bg-purple-600" : ""}`}
-                                onClick={() => updateClassification(t.id, "negocios")}
-                              >
-                                Negócio
-                              </Button>
-                              <Button 
-                                variant={!t.account_type || t.account_type === "pendente" ? "default" : "outline"} 
-                                size="sm" 
-                                className={`h-7 text-xs px-2 ${!t.account_type || t.account_type === "pendente" ? "bg-zinc-500 hover:bg-zinc-600" : ""}`}
-                                onClick={() => updateClassification(t.id, "pendente")}
-                              >
-                                Pendente
-                              </Button>
-                            </div>
                           </TableCell>
                         </TableRow>
                       ))
