@@ -102,10 +102,7 @@ const fetcher = async (key: string): Promise<{ data: Transaction[] }> => {
 };
 
 function generateInstallments(description: string, amount: number, dateStr: string, type: "income" | "expense", accountId: string | null, totalInstallments: number, userId: string) {
-  const baseDate = new Date(dateStr + "T12:00:00");
-  const year = baseDate.getFullYear();
-  const month = baseDate.getMonth() + 1;
-  const day = baseDate.getDate();
+  const [year, month, day] = dateStr.split("-").map(Number);
   
   const installments = [];
   
@@ -338,6 +335,7 @@ export default function TransacoesPage() {
 
   const transactions = data?.data || [];
   
+  console.log("DEBUG - filterType:", filterType, "transactions:", transactions.map(t => t.type));
   const transacoesFiltradas = transactions?.filter(t => filterType === 'todas' ? true : t.type === filterType) || [];
 
   return (
@@ -377,7 +375,7 @@ export default function TransacoesPage() {
             </SelectContent>
           </Select>
 
-          <ToggleGroup type="single" value={filterType} onValueChange={(val) => { if (val) setFilterType(val as FilterType); }} className="bg-white dark:bg-zinc-900 rounded-lg p-1 border border-zinc-200 dark:border-zinc-800">
+          <ToggleGroup type="single" value={filterType} onValueChange={(val) => { console.log("DEBUG - ToggleGroup value:", val); if (val) setFilterType(val as FilterType); }} className="bg-white dark:bg-zinc-900 rounded-lg p-1 border border-zinc-200 dark:border-zinc-800">
             <ToggleGroupItem value="todas" className="px-3 py-1">Todas</ToggleGroupItem>
             <ToggleGroupItem value="expense" className="px-3 py-1">Despesas</ToggleGroupItem>
             <ToggleGroupItem value="income" className="px-3 py-1">Receitas</ToggleGroupItem>
