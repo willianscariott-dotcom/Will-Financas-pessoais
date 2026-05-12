@@ -51,7 +51,7 @@ interface DataResponse {
   previous: Transaction[];
 }
 
-type ViewFilter = "pessoal" | "negocios";
+
 
 function getMonthRange(year: number, month: number): { start: string; end: string } {
   const start = `${year}-${String(month).padStart(2, "0")}-01`;
@@ -66,7 +66,7 @@ function formatMonthYear(year: number, month: number): string {
 }
 
 const fetcher = async (key: string): Promise<DataResponse> => {
-  const [view, year, month] = key.split("|");
+  const [year, month] = key.split("|");
   
   const currentYear = parseInt(year);
   const currentMonth = parseInt(month);
@@ -83,7 +83,6 @@ const fetcher = async (key: string): Promise<DataResponse> => {
     .from("transactions")
     .select("*, categories(name)")
     .eq("user_id", user?.id)
-    .eq("account_type", view)
     .gte("date", currentRange.start)
     .lte("date", currentRange.end)
     .order("date", { ascending: false });
@@ -92,7 +91,6 @@ const fetcher = async (key: string): Promise<DataResponse> => {
     .from("transactions")
     .select("*, categories(name)")
     .eq("user_id", user?.id)
-    .eq("account_type", view)
     .gte("date", prevRange.start)
     .lte("date", prevRange.end)
     .order("date", { ascending: false });
@@ -175,19 +173,38 @@ export default function DashboardFinanceiro() {
   const router = useRouter();
 
   const now = new Date();
-  const [viewFilter, setViewFilter] = useState<ViewFilter>("pessoal");
   const [selectedYear, setSelectedYear] = useState(now.getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState((now.getMonth() + 1).toString());
 
-  const cacheKey = useMemo(() => `${viewFilter}|${selectedYear}|${selectedMonth}`, [viewFilter, selectedYear, selectedMonth]);
+  const cacheKey = useMemo(() => `${selectedYear}|${selectedMonth}`, [selectedYear, selectedMonth]);
 
-  const { data, isLoading, error } = useSWR<DataResponse>(
+  const { data, isLoading, error, mutate } = useSWR<DataResponse>(
     user ? cacheKey : null,
     fetcher,
     {
       revalidateOnFocus: false,
     }
   );
+
+  const updateClassification = async (transactionId: number, newType: string) => {
+    const previousData = data;
+    
+    mutate({
+      current: data?.current.map(t => 
+        t.id === transactionId ? { ...t, account_type: newType } : t
+      ) || [],
+      previous: data?.previous || []
+    }, false);
+
+    const { error } = await supabase
+      .from("transactions")
+      .update({ account_type: newType })
+      .eq("id", transactionId);
+
+    if (error) {
+      mutate(previousData, false);
+    }
+  };
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -339,11 +356,6 @@ export default function DashboardFinanceiro() {
             </header>
 
             <div className="flex flex-wrap items-center gap-3">
-              <ToggleGroup type="single" value={viewFilter} onValueChange={(v) => v && setViewFilter(v as ViewFilter)} className="bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 p-1">
-                <ToggleGroupItem value="pessoal" className="px-4 py-2 data-[state=on]:bg-emerald-500 data-[state=on]:text-white">Pessoal</ToggleGroupItem>
-                <ToggleGroupItem value="negocios" className="px-4 py-2 data-[state=on]:bg-emerald-500 data-[state=on]:text-white">Negócios</ToggleGroupItem>
-              </ToggleGroup>
-
               <div className="flex items-center gap-1 bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 p-1">
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goToPrevMonth}>
                   <ChevronLeft className="w-4 h-4" />
@@ -455,12 +467,13 @@ export default function DashboardFinanceiro() {
                           <TableHead>Tipo</TableHead>
                           <TableHead>Data</TableHead>
                           <TableHead className="text-right">Valor</TableHead>
+                          <TableHead>Classificação</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
 {transactions.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-zinc-500">
+                        <TableCell colSpan={6} className="text-center py-8 text-zinc-500">
                           Nenhuma transação encontrada
                         </TableCell>
                       </TableRow>
@@ -480,6 +493,34 @@ export default function DashboardFinanceiro() {
                           <TableCell>{new Date(t.date).toLocaleDateString("pt-BR")}</TableCell>
                           <TableCell className={`text-right font-semibold ${t.type === "income" ? "text-emerald-600" : "text-rose-600"}`}>
                             {t.type === "income" ? "+" : "-"} R$ {t.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button 
+                                variant={t.account_type === "pessoal" ? "default" : "outline"} 
+                                size="sm" 
+                                className={`h-7 text-xs px-2 ${t.account_type === "pessoal" ? "bg-blue-500 hover:bg-blue-600" : ""}`}
+                                onClick={() => updateClassification(t.id, "pessoal")}
+                              >
+                                Pessoal
+                              </Button>
+                              <Button 
+                                variant={t.account_type === "negocios" ? "default" : "outline"} 
+                                size="sm" 
+                                className={`h-7 text-xs px-2 ${t.account_type === "negocios" ? "bg-purple-500 hover:bg-purple-600" : ""}`}
+                                onClick={() => updateClassification(t.id, "negocios")}
+                              >
+                                Negócio
+                              </Button>
+                              <Button 
+                                variant={!t.account_type || t.account_type === "pendente" ? "default" : "outline"} 
+                                size="sm" 
+                                className={`h-7 text-xs px-2 ${!t.account_type || t.account_type === "pendente" ? "bg-zinc-500 hover:bg-zinc-600" : ""}`}
+                                onClick={() => updateClassification(t.id, "pendente")}
+                              >
+                                Pendente
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))
