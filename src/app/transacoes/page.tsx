@@ -46,7 +46,7 @@ interface Subcategory {
   category_type: string;
 }
 
-type FilterType = "todas" | "expense" | "income" | "transfer";
+type FilterType = "todas" | "expense" | "income";
 type PeriodFilter = "full-month" | "month-to-date" | "today-to-end";
 
 function getMonthRange(year: number, month: number): { start: string; end: string } {
@@ -239,14 +239,16 @@ export default function TransacoesPage() {
       return;
     }
 
-    const amount = parseFloat(newTransaction.amount);
-    if (isNaN(amount) || amount <= 0) {
+    const cleanAmount = Number(newTransaction.amount.toString().replace(',', '.'));
+    if (isNaN(cleanAmount) || cleanAmount <= 0) {
       toast.error("Valor inválido");
       return;
     }
 
     const repeatMonths = parseInt(newTransaction.repeatMonths);
-    const subcategoryId = newTransaction.subcategoryId ? parseInt(newTransaction.subcategoryId) : null;
+    const selectedAccount = newTransaction.fromAccountId || null;
+    const selectedSubcategory = newTransaction.subcategoryId || null;
+    const selectedType = newTransaction.type === "income" ? "income" : "expense";
 
     try {
       if (newTransaction.isTransfer && newTransaction.fromAccountId && newTransaction.toAccountId) {
@@ -255,7 +257,7 @@ export default function TransacoesPage() {
         
         const expenseInstallments = generateInstallments(
           `Transferência para ${accounts.find(a => a.id === toAccountId)?.name || "conta"}`,
-          amount,
+          cleanAmount,
           newTransaction.date,
           "expense",
           fromAccountId,
@@ -265,7 +267,7 @@ export default function TransacoesPage() {
         
         const incomeInstallments = generateInstallments(
           `Transferência de ${accounts.find(a => a.id === fromAccountId)?.name || "conta"}`,
-          amount,
+          cleanAmount,
           newTransaction.date,
           "income",
           toAccountId,
@@ -276,7 +278,8 @@ export default function TransacoesPage() {
         const { error: insertError } = await supabase.from("pessoal_transactions").insert([...expenseInstallments, ...incomeInstallments]);
         
         if (insertError) {
-          toast.error(`Erro ao salvar: ${insertError.message}`);
+          console.error(insertError);
+          toast.error(insertError.message, { description: "Erro ao salvar transação" });
           return;
         }
       } else {
@@ -284,9 +287,9 @@ export default function TransacoesPage() {
         
         const installments = generateInstallments(
           newTransaction.description,
-          amount,
+          cleanAmount,
           newTransaction.date,
-          newTransaction.type as "income" | "expense",
+          selectedType as "income" | "expense",
           accountId,
           repeatMonths,
           user.id
@@ -294,13 +297,15 @@ export default function TransacoesPage() {
 
         const payload = installments.map(inst => ({
           ...inst,
-          subcategory_id: subcategoryId
+          account_id: selectedAccount,
+          subcategory_id: selectedSubcategory
         }));
 
         const { error: insertError } = await supabase.from("pessoal_transactions").insert(payload);
         
         if (insertError) {
-          toast.error(`Erro ao salvar: ${insertError.message}`);
+          console.error(insertError);
+          toast.error(insertError.message, { description: "Erro ao salvar transação" });
           return;
         }
       }
@@ -320,7 +325,8 @@ export default function TransacoesPage() {
         repeatMonths: "1"
       });
     } catch (error: any) {
-      toast.error(`Erro ao salvar: ${error.message}`);
+      console.error(error);
+      toast.error(error.message, { description: "Erro ao salvar transação" });
     }
   };
 
@@ -334,7 +340,7 @@ export default function TransacoesPage() {
 
   const transactions = data?.data || [];
   
-  const transacoesFiltradas = transactions.filter(t => (!filterType || filterType === "todas") ? true : t.type === filterType);
+  const transacoesFiltradas = transactions?.filter(t => filterType === 'todas' ? true : t.type === filterType) || [];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 p-4 md:p-8">
@@ -373,11 +379,10 @@ export default function TransacoesPage() {
             </SelectContent>
           </Select>
 
-          <ToggleGroup type="single" value={filterType} onValueChange={(v) => setFilterType(v as FilterType || "todas")} className="bg-white dark:bg-zinc-900 rounded-lg p-1 border border-zinc-200 dark:border-zinc-800">
+          <ToggleGroup type="single" value={filterType} onValueChange={(val) => { if (val) setFilterType(val as FilterType); }} className="bg-white dark:bg-zinc-900 rounded-lg p-1 border border-zinc-200 dark:border-zinc-800">
             <ToggleGroupItem value="todas" className="px-3 py-1">Todas</ToggleGroupItem>
             <ToggleGroupItem value="expense" className="px-3 py-1">Despesas</ToggleGroupItem>
             <ToggleGroupItem value="income" className="px-3 py-1">Receitas</ToggleGroupItem>
-            <ToggleGroupItem value="transfer" className="px-3 py-1">Transferências</ToggleGroupItem>
           </ToggleGroup>
 
           <Button onClick={() => setIsNewOpen(true)} className="ml-auto bg-emerald-500 hover:bg-emerald-600">
