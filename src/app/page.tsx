@@ -86,12 +86,8 @@ const fetcher = async (key: string): Promise<DataResponse> => {
     .lte("date", currentRange.end)
     .order("date", { ascending: false });
 
-  if (view !== "todas") {
-    if (view === "nao_classificado") {
-      query = query.is("account_type", null);
-    } else {
-      query = query.eq("account_type", view);
-    }
+  if (view !== "todas" && view !== "nao_classificado") {
+    query = query.eq("account_type", view);
   }
 
   const currentRes = await query;
@@ -104,12 +100,8 @@ const fetcher = async (key: string): Promise<DataResponse> => {
     .lte("date", prevRange.end)
     .order("date", { ascending: false });
 
-  if (view !== "todas") {
-    if (view === "nao_classificado") {
-      prevQuery = prevQuery.is("account_type", null);
-    } else {
-      prevQuery = prevQuery.eq("account_type", view);
-    }
+  if (view !== "todas" && view !== "nao_classificado") {
+    prevQuery = prevQuery.eq("account_type", view);
   }
 
   const prevRes = await prevQuery;
@@ -341,10 +333,88 @@ export default function DashboardFinanceiro() {
     return null;
   }
 
-  const kpiData = calculateKPIs();
-  const incomeByCategory = calculateCategoryData("income");
-  const expenseByCategory = calculateCategoryData("expense");
-  const transactions = data?.current || [];
+  const getFilteredTransactions = (transactions: Transaction[]) => {
+    if (viewFilter === "nao_classificado") {
+      return transactions.filter(t => !t.account_type || t.account_type === "");
+    } else if (viewFilter !== "todas") {
+      return transactions.filter(t => t.account_type === viewFilter);
+    }
+    return transactions;
+  };
+
+  const currentFiltered = getFilteredTransactions(data?.current || []);
+  const previousFiltered = getFilteredTransactions(data?.previous || []);
+
+  const calculateKPIsFiltered = (): KPIData[] => {
+    if (currentFiltered.length === 0) {
+      return [
+        { title: "Receitas", metric: "R$ 0", variation: "0%", isPositive: true },
+        { title: "Despesas", metric: "R$ 0", variation: "0%", isPositive: true },
+        { title: "Saldo", metric: "R$ 0", variation: "0%", isPositive: true },
+      ];
+    }
+
+    const currentIncome = currentFiltered
+      .filter((t) => t.type === "income")
+      .reduce((sum, t) => sum + t.amount, 0);
+    const currentExpense = currentFiltered
+      .filter((t) => t.type === "expense")
+      .reduce((sum, t) => sum + t.amount, 0);
+    const currentBalance = currentIncome - currentExpense;
+
+    const prevIncome = previousFiltered
+      .filter((t) => t.type === "income")
+      .reduce((sum, t) => sum + t.amount, 0);
+    const prevExpense = previousFiltered
+      .filter((t) => t.type === "expense")
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    const calcVariation = (current: number, previous: number) => {
+      if (previous === 0) return current > 0 ? "+100%" : "0%";
+      const variation = ((current - previous) / previous) * 100;
+      return `${variation >= 0 ? "+" : ""}${variation.toFixed(1)}%`;
+    };
+
+    return [
+      {
+        title: "Receitas",
+        metric: `R$ ${currentIncome.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+        variation: calcVariation(currentIncome, prevIncome),
+        isPositive: currentIncome >= prevIncome,
+      },
+      {
+        title: "Despesas",
+        metric: `R$ ${currentExpense.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+        variation: calcVariation(currentExpense, prevExpense),
+        isPositive: currentExpense <= prevExpense,
+      },
+      {
+        title: "Saldo",
+        metric: `R$ ${currentBalance.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+        variation: currentBalance >= 0 ? "Positivo" : "Negativo",
+        isPositive: currentBalance >= 0,
+      },
+    ];
+  };
+
+  const calculateCategoryDataFiltered = (type: "income" | "expense"): CategoryData[] => {
+    const categoryMap = new Map<string, number>();
+    currentFiltered
+      .filter((t) => t.type === type)
+      .forEach((t) => {
+        const catName = t.categories?.name || "Sem categoria";
+        const current = categoryMap.get(catName) || 0;
+        categoryMap.set(catName, current + t.amount);
+      });
+    return Array.from(categoryMap.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  };
+
+  const kpiData = calculateKPIsFiltered();
+  const incomeByCategory = calculateCategoryDataFiltered("income");
+  const expenseByCategory = calculateCategoryDataFiltered("expense");
+  const transactions = currentFiltered;
   const maxExpenseValue = Math.max(...expenseByCategory.map((c) => c.value), 1);
   const maxIncomeValue = Math.max(...incomeByCategory.map((c) => c.value), 1);
 
