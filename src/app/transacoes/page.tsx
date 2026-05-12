@@ -270,7 +270,7 @@ export default function TransacoesPage() {
           fromAccountId,
           repeatMonths,
           user.id
-        );
+        ).map(inst => ({ ...inst, date: new Date(`${inst.date}T12:00:00`).toISOString().split('T')[0] }));
         
         const incomeInstallments = generateInstallments(
           `Transferência de ${accounts.find(a => a.id === fromAccountId)?.name || "conta"}`,
@@ -280,7 +280,7 @@ export default function TransacoesPage() {
           toAccountId,
           repeatMonths,
           user.id
-        );
+        ).map(inst => ({ ...inst, date: new Date(`${inst.date}T12:00:00`).toISOString().split('T')[0] }));
 
         const { error: insertError } = await supabase.from("pessoal_transactions").insert([...expenseInstallments, ...incomeInstallments]);
         
@@ -302,9 +302,12 @@ export default function TransacoesPage() {
 
         const payload = installments.map(inst => ({
           ...inst,
+          date: new Date(`${inst.date}T12:00:00`).toISOString().split('T')[0],
           account_id: newTransaction.fromAccountId || null,
           subcategory_id: newTransaction.subcategoryId || null
         }));
+
+        console.log("DEBUG payload:", payload);
 
         const { error: insertError } = await supabase.from("pessoal_transactions").insert(payload);
         
@@ -352,20 +355,20 @@ export default function TransacoesPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 p-3 sm:p-4 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        <header className="flex items-center gap-2 sm:gap-4">
+        <header className="flex items-center gap-2 lg:gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.push("/")}>
             <ChevronLeft className="w-5 h-5" />
           </Button>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-50 truncate">Transações</h1>
-            <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm">Lista completa de transações</p>
+            <h1 className="text-xl lg:text-2xl font-bold text-zinc-900 dark:text-zinc-50 truncate">Transações</h1>
+            <p className="text-zinc-500 dark:text-zinc-400 text-xs lg:text-sm hidden lg:block">Lista completa de transações</p>
           </div>
         </header>
 
-        <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 sm:gap-3">
-          <div className="flex items-center justify-between sm:justify-start gap-1 bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 p-1">
+        <div className="flex flex-col lg:flex-row flex-wrap items-stretch lg:items-center gap-2 lg:gap-3">
+          <div className="flex items-center justify-between lg:justify-start gap-1 bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 p-1">
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goToPrevMonth}>
               <ChevronLeft className="w-4 h-4" />
             </Button>
@@ -378,7 +381,7 @@ export default function TransacoesPage() {
           </div>
 
           <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PeriodFilter)}>
-            <SelectTrigger className="w-full sm:w-44 bg-white dark:bg-zinc-900">
+            <SelectTrigger className="w-full lg:w-44 bg-white dark:bg-zinc-900">
               <SelectValue placeholder="Período" />
             </SelectTrigger>
             <SelectContent>
@@ -388,15 +391,15 @@ export default function TransacoesPage() {
             </SelectContent>
           </Select>
 
-          <ToggleGroup type="single" value={filterType} onValueChange={(val) => { if (val) setFilterType(val as FilterType); }} className="bg-white dark:bg-zinc-900 rounded-lg p-1 border border-zinc-200 dark:border-zinc-800 w-full sm:w-auto overflow-x-auto">
-            <ToggleGroupItem value="todas" className="px-3 py-1">Todas</ToggleGroupItem>
-            <ToggleGroupItem value="expense" className="px-3 py-1">Despesas</ToggleGroupItem>
-            <ToggleGroupItem value="income" className="px-3 py-1">Receitas</ToggleGroupItem>
+          <ToggleGroup type="single" value={filterType} onValueChange={(val) => { if (val) setFilterType(val as FilterType); }} className="bg-white dark:bg-zinc-900 rounded-lg p-1 border border-zinc-200 dark:border-zinc-800 w-full lg:w-auto overflow-x-auto">
+            <ToggleGroupItem value="todas" className="px-3 py-1 text-sm">Todas</ToggleGroupItem>
+            <ToggleGroupItem value="expense" className="px-3 py-1 text-sm">Despesas</ToggleGroupItem>
+            <ToggleGroupItem value="income" className="px-3 py-1 text-sm">Receitas</ToggleGroupItem>
           </ToggleGroup>
 
-          <Button onClick={() => setIsNewOpen(true)} className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600">
-            <Plus className="w-4 h-4 mr-2" />
-            Nova
+          <Button onClick={() => setIsNewOpen(true)} className="w-full lg:w-auto bg-emerald-500 hover:bg-emerald-600">
+            <Plus className="w-4 h-4 mr-0 lg:mr-2" />
+            <span className="lg:hidden">Nova</span>
           </Button>
         </div>
 
@@ -404,13 +407,13 @@ export default function TransacoesPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Descrição</TableHead>
-                <TableHead>Conta</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead className="text-right">Valor</TableHead>
-                <TableHead className="w-20">Ações</TableHead>
+                <TableHead className="whitespace-nowrap">Descrição</TableHead>
+                <TableHead className="hidden md:table-cell whitespace-nowrap">Conta</TableHead>
+                <TableHead className="hidden lg:table-cell whitespace-nowrap">Categoria</TableHead>
+                <TableHead className="whitespace-nowrap">Tipo</TableHead>
+                <TableHead className="whitespace-nowrap">Data</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Valor</TableHead>
+                <TableHead className="w-16 whitespace-nowrap">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -431,20 +434,20 @@ export default function TransacoesPage() {
                     : t.description;
                   return (
                   <TableRow key={t.id}>
-                    <TableCell className="font-medium">{descriptionWithInstallment}</TableCell>
-                    <TableCell>{t.account?.name || "-"}</TableCell>
-                    <TableCell>{t.subcategory?.name || "-"}</TableCell>
+                    <TableCell className="font-medium max-w-[150px] lg:max-w-none truncate">{descriptionWithInstallment}</TableCell>
+                    <TableCell className="hidden md:table-cell">{t.account?.name || "-"}</TableCell>
+                    <TableCell className="hidden lg:table-cell">{t.subcategory?.name || "-"}</TableCell>
                     <TableCell>
                       <Badge className={t.type === "income" ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}>
                         {t.type === "income" ? "Receita" : "Despesa"}
                       </Badge>
                     </TableCell>
-                    <TableCell>{t.date.split("-").reverse().join("/")}</TableCell>
-                    <TableCell className={`text-right font-medium ${t.type === "income" ? "text-emerald-600" : "text-rose-600"}`}>
+                    <TableCell className="whitespace-nowrap">{t.date.split("-").reverse().join("/")}</TableCell>
+                    <TableCell className={`text-right font-medium whitespace-nowrap ${t.type === "income" ? "text-emerald-600" : "text-rose-600"}`}>
                       {t.type === "income" ? "+" : "-"} R$ {t.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(t.id)}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(t.id)}>
                         <Trash2 className="w-4 h-4 text-rose-600" />
                       </Button>
                     </TableCell>
@@ -457,32 +460,32 @@ export default function TransacoesPage() {
       </div>
 
       <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
-        <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>Nova Transação</DialogTitle>
+            <DialogTitle className="text-lg sm:text-xl">Nova Transação</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="flex gap-2">
-              <Button variant={newTransaction.type === "expense" && !newTransaction.isTransfer ? "default" : "outline"} className="flex-1" onClick={() => setNewTransaction({ ...newTransaction, type: "expense", isTransfer: false })}>Despesa</Button>
-              <Button variant={newTransaction.type === "income" && !newTransaction.isTransfer ? "default" : "outline"} className="flex-1" onClick={() => setNewTransaction({ ...newTransaction, type: "income", isTransfer: false })}>Receita</Button>
-              <Button variant={newTransaction.isTransfer ? "default" : "outline"} className="flex-1" onClick={() => setNewTransaction({ ...newTransaction, isTransfer: true })}>Transferência</Button>
+            <div className="flex gap-1 sm:gap-2">
+              <Button size="sm" variant={newTransaction.type === "expense" && !newTransaction.isTransfer ? "default" : "outline"} className="flex-1 text-xs sm:text-sm" onClick={() => setNewTransaction({ ...newTransaction, type: "expense", isTransfer: false })}>Despesa</Button>
+              <Button size="sm" variant={newTransaction.type === "income" && !newTransaction.isTransfer ? "default" : "outline"} className="flex-1 text-xs sm:text-sm" onClick={() => setNewTransaction({ ...newTransaction, type: "income", isTransfer: false })}>Receita</Button>
+              <Button size="sm" variant={newTransaction.isTransfer ? "default" : "outline"} className="flex-1 text-xs sm:text-sm" onClick={() => setNewTransaction({ ...newTransaction, isTransfer: true })}>Transferência</Button>
             </div>
 
             {newTransaction.isTransfer ? (
               <>
-                <div className="space-y-2">
-                  <Label>Conta de Origem</Label>
+                <div className="space-y-1 sm:space-y-2">
+                  <Label className="text-sm">Conta de Origem</Label>
                   <Select value={newTransaction.fromAccountId} onValueChange={(v) => setNewTransaction({ ...newTransaction, fromAccountId: v })}>
-                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectTrigger className="h-10 sm:h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
                       {accounts.map((acc) => <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>Conta de Destino</Label>
+                <div className="space-y-1 sm:space-y-2">
+                  <Label className="text-sm">Conta de Destino</Label>
                   <Select value={newTransaction.toAccountId} onValueChange={(v) => setNewTransaction({ ...newTransaction, toAccountId: v })}>
-                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectTrigger className="h-10 sm:h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
                       {accounts.map((acc) => <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>)}
                     </SelectContent>
@@ -491,19 +494,19 @@ export default function TransacoesPage() {
               </>
             ) : (
               <>
-                <div className="space-y-2">
-                  <Label>Conta</Label>
+                <div className="space-y-1 sm:space-y-2">
+                  <Label className="text-sm">Conta</Label>
                   <Select value={newTransaction.fromAccountId} onValueChange={(v) => setNewTransaction({ ...newTransaction, fromAccountId: v })}>
-                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectTrigger className="h-10 sm:h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
                       {accounts.map((acc) => <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>Subcategoria</Label>
+                <div className="space-y-1 sm:space-y-2">
+                  <Label className="text-sm">Subcategoria</Label>
                   <Select value={newTransaction.subcategoryId} onValueChange={(v) => setNewTransaction({ ...newTransaction, subcategoryId: v })}>
-                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectTrigger className="h-10 sm:h-11"><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
                       {subcategories.filter(sc => newTransaction.type === "income" ? sc.category_type === "income" : sc.category_type === "expense").map((sc) => (
                         <SelectItem key={sc.id} value={sc.id}>{sc.name}</SelectItem>
@@ -514,26 +517,26 @@ export default function TransacoesPage() {
               </>
             )}
 
-            <div className="space-y-2">
-              <Label>Descrição</Label>
-              <Input placeholder="Ex: Aluguel" value={newTransaction.description} onChange={(e) => setNewTransaction({ ...newTransaction, description: e.target.value })} />
+            <div className="space-y-1 sm:space-y-2">
+              <Label className="text-sm">Descrição</Label>
+              <Input className="h-10 sm:h-11" placeholder="Ex: Aluguel" value={newTransaction.description} onChange={(e) => setNewTransaction({ ...newTransaction, description: e.target.value })} />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Valor</Label>
-                <Input type="number" step="0.01" placeholder="0,00" value={newTransaction.amount} onChange={(e) => setNewTransaction({ ...newTransaction, amount: e.target.value })} />
+            <div className="grid grid-cols-2 gap-2 sm:gap-4">
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-sm">Valor</Label>
+                <Input className="h-10 sm:h-11" type="number" step="0.01" placeholder="0,00" value={newTransaction.amount} onChange={(e) => setNewTransaction({ ...newTransaction, amount: e.target.value })} />
               </div>
-              <div className="space-y-2">
-                <Label>Data</Label>
-                <Input type="date" value={newTransaction.date} onChange={(e) => setNewTransaction({ ...newTransaction, date: e.target.value })} />
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-sm">Data</Label>
+                <Input className="h-10 sm:h-11" type="date" value={newTransaction.date} onChange={(e) => setNewTransaction({ ...newTransaction, date: e.target.value })} />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Repetir por (meses)</Label>
+            <div className="space-y-1 sm:space-y-2">
+              <Label className="text-sm">Repetir por (meses)</Label>
               <Select value={newTransaction.repeatMonths} onValueChange={(v) => setNewTransaction({ ...newTransaction, repeatMonths: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-10 sm:h-11"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="1">1 mês</SelectItem>
                   <SelectItem value="2">2 meses</SelectItem>
@@ -544,9 +547,9 @@ export default function TransacoesPage() {
               </Select>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsNewOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSaveNewTransaction}>Salvar</Button>
+          <DialogFooter className="flex flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setIsNewOpen(false)} className="w-full sm:w-auto">Cancelar</Button>
+            <Button onClick={handleSaveNewTransaction} className="w-full sm:w-auto">Salvar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
