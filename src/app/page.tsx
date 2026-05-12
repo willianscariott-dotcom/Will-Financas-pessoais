@@ -50,7 +50,7 @@ interface DataResponse {
   previous: Transaction[];
 }
 
-type ViewFilter = "pessoal" | "negocios" | "nao_classificado" | "todas";
+type ViewFilter = "unclassified" | "pessoal" | "negocios" | "todas";
 
 function getMonthRange(year: number, month: number): { start: string; end: string } {
   const start = `${year}-${String(month).padStart(2, "0")}-01`;
@@ -86,7 +86,7 @@ const fetcher = async (key: string): Promise<DataResponse> => {
     .lte("date", currentRange.end)
     .order("date", { ascending: false });
 
-  if (view !== "todas" && view !== "nao_classificado") {
+  if (view !== "todas" && view !== "unclassified") {
     query = query.eq("account_type", view);
   }
 
@@ -100,7 +100,7 @@ const fetcher = async (key: string): Promise<DataResponse> => {
     .lte("date", prevRange.end)
     .order("date", { ascending: false });
 
-  if (view !== "todas" && view !== "nao_classificado") {
+  if (view !== "todas" && view !== "unclassified") {
     prevQuery = prevQuery.eq("account_type", view);
   }
 
@@ -184,7 +184,7 @@ export default function DashboardFinanceiro() {
   const router = useRouter();
 
   const now = new Date();
-  const [viewFilter, setViewFilter] = useState<ViewFilter>("nao_classificado");
+  const [viewFilter, setViewFilter] = useState<ViewFilter>("unclassified");
   const [selectedYear, setSelectedYear] = useState(now.getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState((now.getMonth() + 1).toString());
   const [updatingId, setUpdatingId] = useState<number | null>(null);
@@ -334,7 +334,7 @@ export default function DashboardFinanceiro() {
   }
 
   const getFilteredTransactions = (transactions: Transaction[]) => {
-    if (viewFilter === "nao_classificado") {
+    if (viewFilter === "unclassified") {
       return transactions.filter(t => !t.account_type || t.account_type === "");
     } else if (viewFilter !== "todas") {
       return transactions.filter(t => t.account_type === viewFilter);
@@ -422,7 +422,7 @@ export default function DashboardFinanceiro() {
     switch (viewFilter) {
       case "pessoal": return "Visão Pessoal";
       case "negocios": return "Visão Negócios";
-      case "nao_classificado": return "Não Classificados";
+      case "unclassified": return "Não Classificados";
       case "todas": return "Todas";
       default: return "Selecione";
     }
@@ -484,7 +484,7 @@ export default function DashboardFinanceiro() {
                   <SelectValue placeholder="Visão" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="nao_classificado">Não Classificados</SelectItem>
+                  <SelectItem value="unclassified">Não Classificados</SelectItem>
                   <SelectItem value="pessoal">Visão Pessoal</SelectItem>
                   <SelectItem value="negocios">Visão Negócios</SelectItem>
                   <SelectItem value="todas">Todas</SelectItem>
@@ -617,15 +617,15 @@ export default function DashboardFinanceiro() {
                               </TableCell>
                               <TableCell>
                                 <Select 
-                                  value={t.account_type || "nao_classificado"} 
-                                  onValueChange={(value) => updateTransactionClassification(t.id, value === "nao_classificado" ? null : value)}
+                                  value={t.account_type || "unclassified"} 
+                                  onValueChange={(value) => updateTransactionClassification(t.id, value === "unclassified" ? null : value)}
                                   disabled={updatingId === t.id}
                                 >
                                   <SelectTrigger className="h-8 w-36">
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="nao_classificado">Não Classificado</SelectItem>
+                                    <SelectItem value="unclassified">Não Classificado</SelectItem>
                                     <SelectItem value="pessoal">Pessoal</SelectItem>
                                     <SelectItem value="negocios">Negócios</SelectItem>
                                   </SelectContent>
