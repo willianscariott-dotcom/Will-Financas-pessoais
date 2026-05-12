@@ -28,7 +28,18 @@ interface Transaction {
   type: "income" | "expense";
   amount: number;
   date: string;
-  category: string | null;
+  installment_current: number | null;
+  installment_total: number | null;
+  account: {
+    name: string;
+  } | null;
+  subcategory: {
+    name: string;
+    category: {
+      name: string;
+      type: string;
+    };
+  } | null;
 }
 
 interface CategoryData {
@@ -77,16 +88,16 @@ const fetcher = async (key: string): Promise<DataResponse> => {
   const { data: { user } } = await supabase.auth.getUser();
 
   const currentRes = await supabase
-    .from("pessoal")
-    .select("*")
+    .from("pessoal_transactions")
+    .select("*, account:pessoal_accounts(name), subcategory:pessoal_subcategories(name, category:pessoal_categories(name, type))")
     .eq("user_id", user?.id)
     .gte("date", currentRange.start)
     .lte("date", currentRange.end)
     .order("date", { ascending: false });
 
   const prevRes = await supabase
-    .from("pessoal")
-    .select("*")
+    .from("pessoal_transactions")
+    .select("*, account:pessoal_accounts(name), subcategory:pessoal_subcategories(name, category:pessoal_categories(name, type))")
     .eq("user_id", user?.id)
     .gte("date", prevRange.start)
     .lte("date", prevRange.end)
@@ -279,7 +290,7 @@ export default function DashboardFinanceiro() {
     transactions
       .filter((t) => t.type === type)
       .forEach((t) => {
-        const catName = t.category || "Sem categoria";
+        const catName = t.subcategory?.category?.name || t.subcategory?.name || "Sem categoria";
         const current = categoryMap.get(catName) || 0;
         categoryMap.set(catName, current + t.amount);
       });
@@ -440,7 +451,8 @@ export default function DashboardFinanceiro() {
                       <TableHeader className="sticky top-0 bg-zinc-50/95 dark:bg-zinc-900/95 backdrop-blur-sm">
                         <TableRow>
                           <TableHead>Descrição</TableHead>
-                          <TableHead>Categoria</TableHead>
+                          <TableHead>Conta</TableHead>
+                          <TableHead>Subcategoria</TableHead>
                           <TableHead>Tipo</TableHead>
                           <TableHead>Data</TableHead>
                           <TableHead className="text-right">Valor</TableHead>
@@ -449,15 +461,20 @@ export default function DashboardFinanceiro() {
                       <TableBody>
 {transactions.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-zinc-500">
+                        <TableCell colSpan={6} className="text-center py-8 text-zinc-500">
                           Nenhuma transação encontrada
                         </TableCell>
                       </TableRow>
                     ) : (
-                      transactions.map((t) => (
+                      transactions.map((t) => {
+                        const descriptionWithInstallment = t.installment_current && t.installment_total
+                          ? `${t.description} (${t.installment_current}/${t.installment_total})`
+                          : t.description;
+                        return (
                         <TableRow key={t.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50">
-                          <TableCell className="font-medium">{t.description}</TableCell>
-                          <TableCell>{t.category || "Sem categoria"}</TableCell>
+                          <TableCell className="font-medium">{descriptionWithInstallment}</TableCell>
+                          <TableCell>{t.account?.name || "Sem conta"}</TableCell>
+                          <TableCell>{t.subcategory?.name || t.subcategory?.category?.name || "Sem subcategoria"}</TableCell>
                           <TableCell>
                             <Badge className={t.type === "income" 
                               ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100" 
@@ -471,7 +488,7 @@ export default function DashboardFinanceiro() {
                             {t.type === "income" ? "+" : "-"} R$ {t.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                           </TableCell>
                         </TableRow>
-                      ))
+                      )})
                     )}
                       </TableBody>
                     </Table>
