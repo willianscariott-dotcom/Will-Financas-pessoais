@@ -139,6 +139,7 @@ export default function TransacoesPage() {
   const router = useRouter();
 
   const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   const [filterType, setFilterType] = useState<FilterType>("todas");
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("full-month");
   const [selectedYear, setSelectedYear] = useState(now.getFullYear().toString());
@@ -151,7 +152,7 @@ export default function TransacoesPage() {
     type: "expense" as "income" | "expense",
     description: "",
     amount: "",
-    date: now.toISOString().split("T")[0],
+    date: todayStr,
     fromAccountId: "",
     toAccountId: "",
     subcategoryId: "",
@@ -337,26 +338,27 @@ export default function TransacoesPage() {
 
   const transactions = data?.data || [];
   
+  const currentFilter = Array.isArray(filterType) ? filterType[0] : filterType;
   const transacoesFiltradas = transactions.filter(t => {
-    if (filterType === 'todas' || !filterType) return true;
-    return t.type === filterType;
+    if (currentFilter === 'todas' || !currentFilter) return true;
+    return t.type === currentFilter;
   });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        <header className="flex items-center gap-4">
+        <header className="flex items-center gap-2 sm:gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.push("/")}>
             <ChevronLeft className="w-5 h-5" />
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Transações</h1>
-            <p className="text-zinc-500 dark:text-zinc-400 text-sm">Lista completa de transações</p>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-50 truncate">Transações</h1>
+            <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm">Lista completa de transações</p>
           </div>
         </header>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1 bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 p-1">
+        <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 sm:gap-3">
+          <div className="flex items-center justify-between sm:justify-start gap-1 bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 p-1">
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goToPrevMonth}>
               <ChevronLeft className="w-4 h-4" />
             </Button>
@@ -369,7 +371,7 @@ export default function TransacoesPage() {
           </div>
 
           <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PeriodFilter)}>
-            <SelectTrigger className="w-44 bg-white dark:bg-zinc-900">
+            <SelectTrigger className="w-full sm:w-44 bg-white dark:bg-zinc-900">
               <SelectValue placeholder="Período" />
             </SelectTrigger>
             <SelectContent>
@@ -379,19 +381,19 @@ export default function TransacoesPage() {
             </SelectContent>
           </Select>
 
-          <ToggleGroup type="single" value={filterType} onValueChange={(val) => { if (val) setFilterType(val as FilterType); }} className="bg-white dark:bg-zinc-900 rounded-lg p-1 border border-zinc-200 dark:border-zinc-800">
+          <ToggleGroup type="single" value={filterType} onValueChange={(val) => { if (val) setFilterType(val as FilterType); }} className="bg-white dark:bg-zinc-900 rounded-lg p-1 border border-zinc-200 dark:border-zinc-800 w-full sm:w-auto overflow-x-auto">
             <ToggleGroupItem value="todas" className="px-3 py-1">Todas</ToggleGroupItem>
             <ToggleGroupItem value="expense" className="px-3 py-1">Despesas</ToggleGroupItem>
             <ToggleGroupItem value="income" className="px-3 py-1">Receitas</ToggleGroupItem>
           </ToggleGroup>
 
-          <Button onClick={() => setIsNewOpen(true)} className="ml-auto bg-emerald-500 hover:bg-emerald-600">
+          <Button onClick={() => setIsNewOpen(true)} className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600">
             <Plus className="w-4 h-4 mr-2" />
             Nova
           </Button>
         </div>
 
-        <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+        <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -430,7 +432,7 @@ export default function TransacoesPage() {
                         {t.type === "income" ? "Receita" : "Despesa"}
                       </Badge>
                     </TableCell>
-                    <TableCell>{new Date(t.date).toLocaleDateString("pt-BR")}</TableCell>
+                    <TableCell>{t.date.split("-").reverse().join("/")}</TableCell>
                     <TableCell className={`text-right font-medium ${t.type === "income" ? "text-emerald-600" : "text-rose-600"}`}>
                       {t.type === "income" ? "+" : "-"} R$ {t.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                     </TableCell>
@@ -448,7 +450,7 @@ export default function TransacoesPage() {
       </div>
 
       <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nova Transação</DialogTitle>
           </DialogHeader>
