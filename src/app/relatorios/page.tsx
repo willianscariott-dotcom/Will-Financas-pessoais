@@ -24,16 +24,19 @@ interface Transaction {
   subcategory: { name: string; category: { name: string; type: string } } | null;
 }
 
-type TimeFilter = "mensal" | "trimestral" | "semestral" | "anual" | "personalizado";
+type TimeFilter = "este-mes" | "mes-passado" | "trimestral" | "semestral" | "anual" | "personalizado";
 
 function getDateRange(filter: TimeFilter, customStart?: string, customEnd?: string) {
   const now = new Date();
   let start = new Date();
   let end = new Date();
 
-  if (filter === "mensal") {
+  if (filter === "este-mes") {
     start = new Date(now.getFullYear(), now.getMonth(), 1);
     end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  } else if (filter === "mes-passado") {
+    start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    end = new Date(now.getFullYear(), now.getMonth(), 0);
   } else if (filter === "trimestral") {
     start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
     end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -94,7 +97,7 @@ export default function RelatoriosPage() {
   const { user, loading: authLoading, signOut } = useAuth();
   const router = useRouter();
 
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>("trimestral");
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("este-mes");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
 
@@ -244,10 +247,11 @@ export default function RelatoriosPage() {
                     <SelectValue placeholder="Selecione o período" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="mensal">Último Mês</SelectItem>
+                    <SelectItem value="este-mes">Este Mês</SelectItem>
+                    <SelectItem value="mes-passado">Mês Passado</SelectItem>
                     <SelectItem value="trimestral">Últimos 3 Meses</SelectItem>
                     <SelectItem value="semestral">Últimos 6 Meses</SelectItem>
-                    <SelectItem value="anual">Últimos 12 Meses</SelectItem>
+                    <SelectItem value="anual">Último Ano</SelectItem>
                     <SelectItem value="personalizado">Personalizado</SelectItem>
                   </SelectContent>
                 </Select>
@@ -279,15 +283,15 @@ export default function RelatoriosPage() {
               <div className="text-center py-12 text-zinc-500">Analisando dados...</div>
             ) : (
               <Grid numItems={1} numItemsLg={2} className="gap-6">
-                <Card className="dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-sm">
+                <Card className="dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-sm w-full min-w-0 overflow-hidden">
                   <Title className="text-zinc-900 dark:text-zinc-50">Evolução do Fluxo de Caixa</Title>
                   <Text className="mb-6">Receitas vs Despesas ao longo do tempo</Text>
                   <AreaChart
-                    className="h-80 mt-4"
+                    className="h-80 mt-4 [&_.recharts-tooltip-cursor]:fill-zinc-100 dark:[&_.recharts-tooltip-cursor]:fill-zinc-800 [&_.tremor-custom-tooltip]:text-slate-800 dark:[&_.tremor-custom-tooltip]:text-slate-200"
                     data={cashFlowData}
                     index="month"
                     categories={["Receitas", "Despesas"]}
-                    colors={["emerald", "rose"]}
+                    colors={["emerald", "red"]}
                     valueFormatter={(value: number) =>
                       `R$ ${Intl.NumberFormat("pt-BR").format(value)}`
                     }
@@ -296,15 +300,15 @@ export default function RelatoriosPage() {
                   />
                 </Card>
 
-                <Card className="dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-sm">
+                <Card className="dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-sm w-full min-w-0 overflow-hidden">
                   <Title className="text-zinc-900 dark:text-zinc-50">Consumo por Categoria</Title>
                   <Text className="mb-6">Onde seu dinheiro foi gasto no período</Text>
                   <BarChart
-                    className="h-80 mt-4"
+                    className="h-80 mt-4 [&_.recharts-tooltip-cursor]:fill-zinc-100 dark:[&_.recharts-tooltip-cursor]:fill-zinc-800 [&_.tremor-custom-tooltip]:text-slate-800 dark:[&_.tremor-custom-tooltip]:text-slate-200"
                     data={expensesByCategory}
                     index="name"
                     categories={["Valor"]}
-                    colors={["rose"]}
+                    colors={["red"]}
                     valueFormatter={(value: number) =>
                       `R$ ${Intl.NumberFormat("pt-BR").format(value)}`
                     }

@@ -111,17 +111,24 @@ const fetcher = async (key: string): Promise<DataResponse> => {
 
   const { data: { user } } = await supabase.auth.getUser();
 
+  const tableName = view === "negocios" ? "negocio_transactions" : "pessoal_transactions";
+  const accTable = view === "negocios" ? "negocio_accounts" : "pessoal_accounts";
+  const subTable = view === "negocios" ? "negocio_subcategories" : "pessoal_subcategories";
+  const catTable = view === "negocios" ? "negocio_categories" : "pessoal_categories";
+
+  const selectQuery = `*, account:${accTable}(name), subcategory:${subTable}(name, category:${catTable}(name, type))`;
+
   const currentRes = await supabase
-    .from("pessoal_transactions")
-    .select("*, account:pessoal_accounts(name), subcategory:pessoal_subcategories(name, category:pessoal_categories(name, type))")
+    .from(tableName)
+    .select(selectQuery)
     .eq("user_id", user?.id)
     .gte("date", currentStart)
     .lte("date", currentEnd)
     .order("date", { ascending: true });
 
   const prevRes = await supabase
-    .from("pessoal_transactions")
-    .select("*, account:pessoal_accounts(name), subcategory:pessoal_subcategories(name, category:pessoal_categories(name, type))")
+    .from(tableName)
+    .select(selectQuery)
     .eq("user_id", user?.id)
     .gte("date", prevRange.start)
     .lte("date", prevRange.end)
@@ -224,7 +231,7 @@ export default function DashboardFinanceiro() {
 
   const now = new Date();
   const [viewFilter, setViewFilter] = useState<ViewFilter>("pessoal");
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("full-month");
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("month-to-date");
   const [selectedYear, setSelectedYear] = useState(now.getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState((now.getMonth() + 1).toString());
   
@@ -262,11 +269,14 @@ export default function DashboardFinanceiro() {
     if (user) {
       fetchAccounts();
     }
-  }, [user]);
+  }, [user, viewFilter]);
+
+  const getTableName = () => viewFilter === "negocios" ? "negocio_transactions" : "pessoal_transactions";
+  const getAccountTableName = () => viewFilter === "negocios" ? "negocio_accounts" : "pessoal_accounts";
 
   async function fetchAccounts() {
     const { data: accountsData } = await supabase
-      .from("pessoal_accounts")
+      .from(getAccountTableName())
       .select("id, name")
       .eq("user_id", user?.id);
     
@@ -306,7 +316,7 @@ export default function DashboardFinanceiro() {
       }, false);
 
       const { error } = await supabase
-        .from("pessoal_transactions")
+        .from(getTableName())
         .delete()
         .eq("id", id);
 
@@ -325,7 +335,7 @@ export default function DashboardFinanceiro() {
     if (!editingTransaction || !user) return;
 
     const { error } = await supabase
-      .from("pessoal_transactions")
+      .from(getTableName())
       .update({
         description: editingTransaction.description,
         amount: parseFloat(editingTransaction.amount.toString()),
@@ -376,7 +386,7 @@ export default function DashboardFinanceiro() {
         user.id
       );
 
-      await supabase.from("pessoal_transactions").insert([...expenseInstallments, ...incomeInstallments]);
+      await supabase.from(getTableName()).insert([...expenseInstallments, ...incomeInstallments]);
     } else if (newTransaction.type === "transfer") {
       alert("Para transferência, selecione as contas de origem e destino");
       return;
@@ -394,7 +404,7 @@ export default function DashboardFinanceiro() {
         user.id
       );
 
-      await supabase.from("pessoal_transactions").insert(installments);
+      await supabase.from(getTableName()).insert(installments);
     }
 
     mutate();
@@ -554,13 +564,13 @@ export default function DashboardFinanceiro() {
               </div>
 
               <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PeriodFilter)}>
-                <SelectTrigger className="w-44 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-sm">
+                <SelectTrigger className="w-56 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-sm">
                   <SelectValue placeholder="Período" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="full-month">Mês Completo</SelectItem>
-                  <SelectItem value="month-to-date">Início do mês até hoje</SelectItem>
-                  <SelectItem value="today-to-end">Hoje até o fim do mês</SelectItem>
+                  <SelectItem value="month-to-date">Do início do mês até hoje</SelectItem>
+                  <SelectItem value="today-to-end">De hoje até o fim do mês</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -712,7 +722,7 @@ export default function DashboardFinanceiro() {
       </div>
 
       <Button
-        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-emerald-500 hover:bg-emerald-600 shadow-lg md:hidden z-50"
+        className="fixed bottom-6 right-6 md:bottom-10 md:right-10 z-50 rounded-full h-14 w-14 shadow-lg bg-emerald-500 hover:bg-emerald-600 text-white"
         onClick={() => setIsNewTransactionOpen(true)}
       >
         <Plus className="w-6 h-6" />

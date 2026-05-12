@@ -25,7 +25,7 @@ import {
 interface Transaction {
   id: number;
   description: string;
-  type: "income" | "expense";
+  type: "income" | "expense" | "transfer";
   amount: number;
   date: string;
   installment_current: number | null;
@@ -285,7 +285,7 @@ export default function TransacoesPage() {
   const filteredTransactions = filterType === "all" 
     ? transactions 
     : filterType === "transfer"
-    ? transactions.filter(t => t.description.toLowerCase().includes("transferência"))
+    ? transactions.filter(t => t.type === "transfer")
     : transactions.filter(t => t.type === filterType);
 
   return (
