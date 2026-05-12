@@ -102,9 +102,8 @@ const fetcher = async (key: string): Promise<{ data: Transaction[] }> => {
 };
 
 function generateInstallments(description: string, amount: number, dateStr: string, type: "income" | "expense", accountId: string | null, totalInstallments: number, userId: string) {
-  const [year, month, day] = dateStr.split("-").map(Number);
-  
   const installments = [];
+  const [year, month, day] = dateStr.split("-").map(Number);
   
   for (let i = 0; i < totalInstallments; i++) {
     const installMonth = month + i;
@@ -116,9 +115,12 @@ function generateInstallments(description: string, amount: number, dateStr: stri
       installYear = year + Math.floor(installMonth / 12);
     }
     
+    const finalDay = Math.min(day, new Date(installYear, adjustMonth, 0).getDate());
+    const finalDate = `${installYear}-${String(adjustMonth).padStart(2, "0")}-${String(finalDay).padStart(2, "0")}`;
+    
     installments.push({
       description: `${description} (${i + 1}/${totalInstallments})`,
-      date: getAdjustedDate(installYear, adjustMonth, day),
+      date: finalDate,
       type,
       amount,
       account_id: accountId,
@@ -335,8 +337,10 @@ export default function TransacoesPage() {
 
   const transactions = data?.data || [];
   
-  console.log("DEBUG - filterType:", filterType, "transactions:", transactions.map(t => t.type));
-  const transacoesFiltradas = transactions?.filter(t => filterType === 'todas' ? true : t.type === filterType) || [];
+  const transacoesFiltradas = transactions.filter(t => {
+    if (filterType === 'todas' || !filterType) return true;
+    return t.type === filterType;
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 p-4 md:p-8">
@@ -375,7 +379,7 @@ export default function TransacoesPage() {
             </SelectContent>
           </Select>
 
-          <ToggleGroup type="single" value={filterType} onValueChange={(val) => { console.log("DEBUG - ToggleGroup value:", val); if (val) setFilterType(val as FilterType); }} className="bg-white dark:bg-zinc-900 rounded-lg p-1 border border-zinc-200 dark:border-zinc-800">
+          <ToggleGroup type="single" value={filterType} onValueChange={(val) => { if (val) setFilterType(val as FilterType); }} className="bg-white dark:bg-zinc-900 rounded-lg p-1 border border-zinc-200 dark:border-zinc-800">
             <ToggleGroupItem value="todas" className="px-3 py-1">Todas</ToggleGroupItem>
             <ToggleGroupItem value="expense" className="px-3 py-1">Despesas</ToggleGroupItem>
             <ToggleGroupItem value="income" className="px-3 py-1">Receitas</ToggleGroupItem>
