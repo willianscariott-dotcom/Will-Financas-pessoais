@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,12 @@ interface Transaction {
 interface Account {
   id: number;
   name: string;
+}
+
+interface Subcategory {
+  id: number;
+  name: string;
+  category_type: string;
 }
 
 type FilterType = "todas" | "expense" | "income" | "transfer";
@@ -138,6 +145,7 @@ export default function TransacoesPage() {
   const [selectedYear, setSelectedYear] = useState(now.getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState((now.getMonth() + 1).toString());
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   
   const [isNewOpen, setIsNewOpen] = useState(false);
   const [newTransaction, setNewTransaction] = useState({
@@ -147,6 +155,7 @@ export default function TransacoesPage() {
     date: now.toISOString().split("T")[0],
     fromAccountId: "",
     toAccountId: "",
+    subcategoryId: "",
     isTransfer: false,
     repeatMonths: "1"
   });
@@ -168,6 +177,7 @@ export default function TransacoesPage() {
   useEffect(() => {
     if (user) {
       fetchAccounts();
+      fetchSubcategories();
     }
   }, [user]);
 
@@ -179,6 +189,18 @@ export default function TransacoesPage() {
     
     if (accountsData) {
       setAccounts(accountsData);
+    }
+  }
+
+  async function fetchSubcategories() {
+    const { data: subcategoriesData } = await supabase
+      .from("pessoal_subcategories")
+      .select("id, name, category_type")
+      .eq("user_id", user?.id)
+      .order("name");
+    
+    if (subcategoriesData) {
+      setSubcategories(subcategoriesData);
     }
   }
 
@@ -212,64 +234,94 @@ export default function TransacoesPage() {
   };
 
   const handleSaveNewTransaction = async () => {
-    if (!user || !newTransaction.description || !newTransaction.amount) return;
-
-    const amount = parseFloat(newTransaction.amount);
-    const repeatMonths = parseInt(newTransaction.repeatMonths);
-
-    if (newTransaction.isTransfer && newTransaction.fromAccountId && newTransaction.toAccountId) {
-      const fromAccountId = parseInt(newTransaction.fromAccountId);
-      const toAccountId = parseInt(newTransaction.toAccountId);
-      
-      const expenseInstallments = generateInstallments(
-        `Transferência para ${accounts.find(a => a.id === toAccountId)?.name || "conta"}`,
-        amount,
-        newTransaction.date,
-        "expense",
-        fromAccountId,
-        repeatMonths,
-        user.id
-      );
-      
-      const incomeInstallments = generateInstallments(
-        `Transferência de ${accounts.find(a => a.id === fromAccountId)?.name || "conta"}`,
-        amount,
-        newTransaction.date,
-        "income",
-        toAccountId,
-        repeatMonths,
-        user.id
-      );
-
-      await supabase.from("pessoal_transactions").insert([...expenseInstallments, ...incomeInstallments]);
-    } else {
-      const accountId = newTransaction.fromAccountId ? parseInt(newTransaction.fromAccountId) : null;
-      
-      const installments = generateInstallments(
-        newTransaction.description,
-        amount,
-        newTransaction.date,
-        newTransaction.type,
-        accountId,
-        repeatMonths,
-        user.id
-      );
-
-      await supabase.from("pessoal_transactions").insert(installments);
+    if (!user || !newTransaction.description || !newTransaction.amount) {
+      toast.error("Preencha todos os campos obrigatórios");
+      return;
     }
 
-    mutate();
-    setIsNewOpen(false);
-    setNewTransaction({
-      type: "expense",
-      description: "",
-      amount: "",
-      date: now.toISOString().split("T")[0],
-      fromAccountId: "",
-      toAccountId: "",
-      isTransfer: false,
-      repeatMonths: "1"
-    });
+    const amount = parseFloat(newTransaction.amount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Valor inválido");
+      return;
+    }
+
+    const repeatMonths = parseInt(newTransaction.repeatMonths);
+    const subcategoryId = newTransaction.subcategoryId ? parseInt(newTransaction.subcategoryId) : null;
+
+    try {
+      if (newTransaction.isTransfer && newTransaction.fromAccountId && newTransaction.toAccountId) {
+        const fromAccountId = parseInt(newTransaction.fromAccountId);
+        const toAccountId = parseInt(newTransaction.toAccountId);
+        
+        const expenseInstallments = generateInstallments(
+          `Transferência para ${accounts.find(a => a.id === toAccountId)?.name || "conta"}`,
+          amount,
+          newTransaction.date,
+          "expense",
+          fromAccountId,
+          repeatMonths,
+          user.id
+        );
+        
+        const incomeInstallments = generateInstallments(
+          `Transferência de ${accounts.find(a => a.id === fromAccountId)?.name || "conta"}`,
+          amount,
+          newTransaction.date,
+          "income",
+          toAccountId,
+          repeatMonths,
+          user.id
+        );
+
+        const { error: insertError } = await supabase.from("pessoal_transactions").insert([...expenseInstallments, ...incomeInstallments]);
+        
+        if (insertError) {
+          toast.error(`Erro ao salvar: ${insertError.message}`);
+          return;
+        }
+      } else {
+        const accountId = newTransaction.fromAccountId ? parseInt(newTransaction.fromAccountId) : null;
+        
+        const installments = generateInstallments(
+          newTransaction.description,
+          amount,
+          newTransaction.date,
+          newTransaction.type as "income" | "expense",
+          accountId,
+          repeatMonths,
+          user.id
+        );
+
+        const payload = installments.map(inst => ({
+          ...inst,
+          subcategory_id: subcategoryId
+        }));
+
+        const { error: insertError } = await supabase.from("pessoal_transactions").insert(payload);
+        
+        if (insertError) {
+          toast.error(`Erro ao salvar: ${insertError.message}`);
+          return;
+        }
+      }
+
+      toast.success("Transação salva com sucesso!");
+      mutate();
+      setIsNewOpen(false);
+      setNewTransaction({
+        type: "expense",
+        description: "",
+        amount: "",
+        date: now.toISOString().split("T")[0],
+        fromAccountId: "",
+        toAccountId: "",
+        subcategoryId: "",
+        isTransfer: false,
+        repeatMonths: "1"
+      });
+    } catch (error: any) {
+      toast.error(`Erro ao salvar: ${error.message}`);
+    }
   };
 
   if (authLoading) {
@@ -424,15 +476,28 @@ export default function TransacoesPage() {
                 </div>
               </>
             ) : (
-              <div className="space-y-2">
-                <Label>Conta</Label>
-                <Select value={newTransaction.fromAccountId} onValueChange={(v) => setNewTransaction({ ...newTransaction, fromAccountId: v })}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>
-                    {accounts.map((acc) => <SelectItem key={acc.id} value={acc.id.toString()}>{acc.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+              <>
+                <div className="space-y-2">
+                  <Label>Conta</Label>
+                  <Select value={newTransaction.fromAccountId} onValueChange={(v) => setNewTransaction({ ...newTransaction, fromAccountId: v })}>
+                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      {accounts.map((acc) => <SelectItem key={acc.id} value={acc.id.toString()}>{acc.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Subcategoria</Label>
+                  <Select value={newTransaction.subcategoryId} onValueChange={(v) => setNewTransaction({ ...newTransaction, subcategoryId: v })}>
+                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      {subcategories.filter(sc => newTransaction.type === "income" ? sc.category_type === "income" : sc.category_type === "expense").map((sc) => (
+                        <SelectItem key={sc.id} value={sc.id.toString()}>{sc.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
             )}
 
             <div className="space-y-2">
