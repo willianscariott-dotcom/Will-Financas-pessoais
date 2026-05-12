@@ -119,8 +119,6 @@ function generateInstallments(description: string, amount: number, dateStr: stri
     const finalDay = Math.min(day, daysInMonth);
     const finalDate = `${installYear}-${String(adjustMonth).padStart(2, "0")}-${String(finalDay).padStart(2, "0")}`;
     
-    console.log("DEBUG generateInstallments - dateStr:", dateStr, "finalDate:", finalDate);
-    
     installments.push({
       description: `${description} (${i + 1}/${totalInstallments})`,
       date: finalDate,
@@ -242,10 +240,7 @@ export default function TransacoesPage() {
       return;
     }
 
-    console.log("DEBUG - newTransaction:", newTransaction);
-    
     const cleanAmount = Number(newTransaction.amount.toString().replace(',', '.'));
-    console.log("DEBUG - cleanAmount:", cleanAmount);
     if (isNaN(cleanAmount) || cleanAmount <= 0) {
       toast.error("Valor inválido");
       return;
@@ -255,7 +250,8 @@ export default function TransacoesPage() {
     const selectedAccount = newTransaction.fromAccountId || null;
     const selectedSubcategory = newTransaction.subcategoryId || null;
     const selectedType = newTransaction.type === "income" ? "income" : "expense";
-    console.log("DEBUG - selectedType:", selectedType);
+    const [year, month, day] = newTransaction.date.split('-');
+    const formattedDate = `${year}-${month}-${day}`;
 
     try {
       if (newTransaction.isTransfer && newTransaction.fromAccountId && newTransaction.toAccountId) {
@@ -265,22 +261,22 @@ export default function TransacoesPage() {
         const expenseInstallments = generateInstallments(
           `Transferência para ${accounts.find(a => a.id === toAccountId)?.name || "conta"}`,
           cleanAmount,
-          newTransaction.date,
+          formattedDate,
           "expense",
           fromAccountId,
           repeatMonths,
           user.id
-        );
+        ).map(inst => ({ ...inst, date: formattedDate }));
         
         const incomeInstallments = generateInstallments(
           `Transferência de ${accounts.find(a => a.id === fromAccountId)?.name || "conta"}`,
           cleanAmount,
-          newTransaction.date,
+          formattedDate,
           "income",
           toAccountId,
           repeatMonths,
           user.id
-        );
+        ).map(inst => ({ ...inst, date: formattedDate }));
 
         const { error: insertError } = await supabase.from("pessoal_transactions").insert([...expenseInstallments, ...incomeInstallments]);
         
@@ -293,7 +289,7 @@ export default function TransacoesPage() {
         const installments = generateInstallments(
           newTransaction.description,
           cleanAmount,
-          newTransaction.date,
+          formattedDate,
           selectedType as "income" | "expense",
           newTransaction.fromAccountId || null,
           repeatMonths,
@@ -302,6 +298,7 @@ export default function TransacoesPage() {
 
         const payload = installments.map(inst => ({
           ...inst,
+          date: formattedDate,
           account_id: newTransaction.fromAccountId || null,
           subcategory_id: newTransaction.subcategoryId || null
         }));
@@ -443,7 +440,7 @@ export default function TransacoesPage() {
                         {t.type === "income" ? "Receita" : "Despesa"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap">{t.date.split("-").reverse().join("/")}</TableCell>
+                    <TableCell className="whitespace-nowrap">{new Date(t.date + 'T12:00:00').toLocaleDateString('pt-BR')}</TableCell>
                     <TableCell className={`text-right font-medium whitespace-nowrap ${t.type === "income" ? "text-emerald-600" : "text-rose-600"}`}>
                       {t.type === "income" ? "+" : "-"} R$ {t.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                     </TableCell>
