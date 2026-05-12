@@ -6,7 +6,7 @@ import useSWR from "swr";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { Card, Metric, Text, Flex, Grid } from "@tremor/react";
-import { ArrowUpRight, ArrowDownRight, LogOut } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, LogOut, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -49,26 +49,48 @@ interface DataResponse {
   previous: Transaction[];
 }
 
-type PeriodFilter = "month-to-date" | "full-month";
 type AccountType = "pessoal" | "negocios";
 
-const fetcher = async (key: string): Promise<DataResponse> => {
-  const [accountType, period] = key.split("|");
-  
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
+function getMonthRange(year: number, month: number): { start: string; end: string } {
+  const start = `${year}-${String(month).padStart(2, "0")}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const end = `${year}-${String(month).padStart(2, "0")}-${lastDay}`;
+  return { start, end };
+}
 
+function formatMonthYear(year: number, month: number): string {
+  const date = new Date(year, month - 1);
+  return date.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+}
+
+const MONTHS = [
+  { value: "1", label: "Janeiro" },
+  { value: "2", label: "Fevereiro" },
+  { value: "3", label: "Março" },
+  { value: "4", label: "Abril" },
+  { value: "5", label: "Maio" },
+  { value: "6", label: "Junho" },
+  { value: "7", label: "Julho" },
+  { value: "8", label: "Agosto" },
+  { value: "9", label: "Setembro" },
+  { value: "10", label: "Outubro" },
+  { value: "11", label: "Novembro" },
+  { value: "12", label: "Dezembro" },
+];
+
+const YEARS = ["2024", "2025", "2026", "2027", "2028"];
+
+const fetcher = async (key: string): Promise<DataResponse> => {
+  const [accountType, year, month] = key.split("|");
+  
+  const currentYear = parseInt(year);
+  const currentMonth = parseInt(month);
+  
   const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
   const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
 
-  const currentStart = `${currentYear}-${String(currentMonth).padStart(2, "0")}-01`;
-  const currentEnd = period === "month-to-date"
-    ? now.toISOString().split("T")[0]
-    : `${currentYear}-${String(currentMonth).padStart(2, "0")}-31`;
-
-  const prevStart = `${prevYear}-${String(prevMonth).padStart(2, "0")}-01`;
-  const prevEnd = `${prevYear}-${String(prevMonth).padStart(2, "0")}-31`;
+  const currentRange = getMonthRange(currentYear, currentMonth);
+  const prevRange = getMonthRange(prevYear, prevMonth);
 
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -78,16 +100,16 @@ const fetcher = async (key: string): Promise<DataResponse> => {
       .select("*, categories(name)")
       .eq("user_id", user?.id)
       .eq("account_type", accountType)
-      .gte("date", currentStart)
-      .lte("date", currentEnd)
+      .gte("date", currentRange.start)
+      .lte("date", currentRange.end)
       .order("date", { ascending: false }),
     supabase
       .from("transactions")
       .select("*, categories(name)")
       .eq("user_id", user?.id)
       .eq("account_type", accountType)
-      .gte("date", prevStart)
-      .lte("date", prevEnd)
+      .gte("date", prevRange.start)
+      .lte("date", prevRange.end)
       .order("date", { ascending: false }),
   ]);
 
@@ -153,17 +175,18 @@ export default function DashboardFinanceiro() {
   const { user, loading: authLoading, signOut } = useAuth();
   const router = useRouter();
 
+  const now = new Date();
   const [accountType, setAccountType] = useState<AccountType>("negocios");
-  const [period, setPeriod] = useState<PeriodFilter>("month-to-date");
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear().toString());
+  const [selectedMonth, setSelectedMonth] = useState((now.getMonth() + 1).toString());
 
-  const cacheKey = useMemo(() => `${accountType}|${period}`, [accountType, period]);
+  const cacheKey = useMemo(() => `${accountType}|${selectedYear}|${selectedMonth}`, [accountType, selectedYear, selectedMonth]);
 
   const { data, isLoading, error } = useSWR<DataResponse>(
     user ? cacheKey : null,
     fetcher,
     {
       revalidateOnFocus: false,
-      dedupingInterval: 60000,
     }
   );
 
@@ -173,12 +196,26 @@ export default function DashboardFinanceiro() {
     }
   }, [user, authLoading, router]);
 
-  const handleAccountTypeChange = (value: string) => {
-    setAccountType(value as AccountType);
+  const goToPrevMonth = () => {
+    const month = parseInt(selectedMonth);
+    const year = parseInt(selectedYear);
+    if (month === 1) {
+      setSelectedMonth("12");
+      setSelectedYear((year - 1).toString());
+    } else {
+      setSelectedMonth((month - 1).toString());
+    }
   };
 
-  const handlePeriodChange = (value: string) => {
-    setPeriod(value as PeriodFilter);
+  const goToNextMonth = () => {
+    const month = parseInt(selectedMonth);
+    const year = parseInt(selectedYear);
+    if (month === 12) {
+      setSelectedMonth("1");
+      setSelectedYear((year + 1).toString());
+    } else {
+      setSelectedMonth((month + 1).toString());
+    }
   };
 
   const calculateKPIs = (): KPIData[] => {
@@ -263,7 +300,8 @@ export default function DashboardFinanceiro() {
   const incomeByCategory = calculateCategoryData("income");
   const expenseByCategory = calculateCategoryData("expense");
   const transactions = data?.current || [];
-  const maxCategoryValue = Math.max(...expenseByCategory.map((c) => c.value), 1);
+  const maxExpenseValue = Math.max(...expenseByCategory.map((c) => c.value), 1);
+  const maxIncomeValue = Math.max(...incomeByCategory.map((c) => c.value), 1);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-4 md:p-6">
@@ -285,22 +323,25 @@ export default function DashboardFinanceiro() {
         </header>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Select value={accountType} onValueChange={handleAccountTypeChange}>
+          <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goToPrevMonth}>
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <span className="px-2 min-w-[120px] text-center font-medium">
+              {formatMonthYear(parseInt(selectedYear), parseInt(selectedMonth))}
+            </span>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goToNextMonth}>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+
+          <Select value={accountType} onValueChange={(v) => setAccountType(v as AccountType)}>
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Conta" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="pessoal">Finanças Pessoais</SelectItem>
               <SelectItem value="negocios">Negócios</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={period} onValueChange={handlePeriodChange}>
-            <SelectTrigger className="w-44">
-              <SelectValue placeholder="Período" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="month-to-date">Início do mês até hoje</SelectItem>
-              <SelectItem value="full-month">Mês todo</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -321,7 +362,7 @@ export default function DashboardFinanceiro() {
         ) : (
           <>
             <Grid numItems={1} numItemsSm={3} className="gap-4">
-              {kpiData.map((kpi, index) => (
+              {kpiData.map((kpi) => (
                 <Card key={kpi.title} className="dark:bg-zinc-900">
                   <Flex justifyContent="between" alignItems="start">
                     <div>
@@ -357,7 +398,7 @@ export default function DashboardFinanceiro() {
                         <div className="h-2 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
                           <div
                             className="h-full bg-rose-500 rounded-full"
-                            style={{ width: `${(cat.value / maxCategoryValue) * 100}%` }}
+                            style={{ width: `${(cat.value / maxExpenseValue) * 100}%` }}
                           />
                         </div>
                       </div>
@@ -372,23 +413,20 @@ export default function DashboardFinanceiro() {
                   {incomeByCategory.length === 0 ? (
                     <p className="text-zinc-500 text-sm">Nenhuma receita encontrada</p>
                   ) : (
-                    incomeByCategory.map((cat) => {
-                      const maxIncomeValue = Math.max(...incomeByCategory.map((c) => c.value), 1);
-                      return (
-                        <div key={cat.name} className="space-y-1">
-                          <Flex justifyContent="between">
-                            <Text className="text-sm">{cat.name}</Text>
-                            <Text className="text-sm font-medium">R$ {cat.value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</Text>
-                          </Flex>
-                          <div className="h-2 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-emerald-500 rounded-full"
-                              style={{ width: `${(cat.value / maxIncomeValue) * 100}%` }}
-                            />
-                          </div>
+                    incomeByCategory.map((cat) => (
+                      <div key={cat.name} className="space-y-1">
+                        <Flex justifyContent="between">
+                          <Text className="text-sm">{cat.name}</Text>
+                          <Text className="text-sm font-medium">R$ {cat.value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</Text>
+                        </Flex>
+                        <div className="h-2 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-emerald-500 rounded-full"
+                            style={{ width: `${(cat.value / maxIncomeValue) * 100}%` }}
+                          />
                         </div>
-                      );
-                    })
+                      </div>
+                    ))
                   )}
                 </div>
               </Card>
