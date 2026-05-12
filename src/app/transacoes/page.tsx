@@ -282,7 +282,7 @@ export default function TransacoesPage() {
 
   const transactions = data?.data || [];
   
-  const transacoesFiltradas = transactions.filter(t => filterType === "todas" ? true : t.type === filterType);
+  const transacoesFiltradas = transactions.filter(t => (!filterType || filterType === "todas") ? true : t.type === filterType);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 p-4 md:p-8">
@@ -321,7 +321,7 @@ export default function TransacoesPage() {
             </SelectContent>
           </Select>
 
-          <ToggleGroup type="single" value={filterType} onValueChange={(v) => { if(v) setFilterType(v as FilterType) }} className="bg-white dark:bg-zinc-900 rounded-lg p-1 border border-zinc-200 dark:border-zinc-800">
+          <ToggleGroup type="single" value={filterType} onValueChange={(v) => setFilterType(v as FilterType || "todas")} className="bg-white dark:bg-zinc-900 rounded-lg p-1 border border-zinc-200 dark:border-zinc-800">
             <ToggleGroupItem value="todas" className="px-3 py-1">Todas</ToggleGroupItem>
             <ToggleGroupItem value="expense" className="px-3 py-1">Despesas</ToggleGroupItem>
             <ToggleGroupItem value="income" className="px-3 py-1">Receitas</ToggleGroupItem>
