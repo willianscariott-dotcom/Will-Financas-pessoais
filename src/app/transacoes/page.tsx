@@ -111,12 +111,15 @@ function generateInstallments(description: string, amount: number, dateStr: stri
     let adjustMonth = installMonth;
     
     if (installMonth > 12) {
-      adjustMonth = installMonth - 12;
-      installYear = year + Math.floor(installMonth / 12);
+      adjustMonth = ((installMonth - 1) % 12) + 1;
+      installYear = year + Math.floor((installMonth - 1) / 12);
     }
     
-    const finalDay = Math.min(day, new Date(installYear, adjustMonth, 0).getDate());
+    const daysInMonth = new Date(installYear, adjustMonth, 0).getDate();
+    const finalDay = Math.min(day, daysInMonth);
     const finalDate = `${installYear}-${String(adjustMonth).padStart(2, "0")}-${String(finalDay).padStart(2, "0")}`;
+    
+    console.log("DEBUG generateInstallments - dateStr:", dateStr, "finalDate:", finalDate);
     
     installments.push({
       description: `${description} (${i + 1}/${totalInstallments})`,
@@ -239,7 +242,10 @@ export default function TransacoesPage() {
       return;
     }
 
+    console.log("DEBUG - newTransaction:", newTransaction);
+    
     const cleanAmount = Number(newTransaction.amount.toString().replace(',', '.'));
+    console.log("DEBUG - cleanAmount:", cleanAmount);
     if (isNaN(cleanAmount) || cleanAmount <= 0) {
       toast.error("Valor inválido");
       return;
@@ -249,6 +255,7 @@ export default function TransacoesPage() {
     const selectedAccount = newTransaction.fromAccountId || null;
     const selectedSubcategory = newTransaction.subcategoryId || null;
     const selectedType = newTransaction.type === "income" ? "income" : "expense";
+    console.log("DEBUG - selectedType:", selectedType);
 
     try {
       if (newTransaction.isTransfer && newTransaction.fromAccountId && newTransaction.toAccountId) {
