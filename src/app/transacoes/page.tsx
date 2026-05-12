@@ -270,7 +270,7 @@ export default function TransacoesPage() {
           fromAccountId,
           repeatMonths,
           user.id
-        ).map(inst => ({ ...inst, date: new Date(`${inst.date}T12:00:00`).toISOString().split('T')[0] }));
+        );
         
         const incomeInstallments = generateInstallments(
           `Transferência de ${accounts.find(a => a.id === fromAccountId)?.name || "conta"}`,
@@ -280,7 +280,7 @@ export default function TransacoesPage() {
           toAccountId,
           repeatMonths,
           user.id
-        ).map(inst => ({ ...inst, date: new Date(`${inst.date}T12:00:00`).toISOString().split('T')[0] }));
+        );
 
         const { error: insertError } = await supabase.from("pessoal_transactions").insert([...expenseInstallments, ...incomeInstallments]);
         
@@ -302,7 +302,6 @@ export default function TransacoesPage() {
 
         const payload = installments.map(inst => ({
           ...inst,
-          date: new Date(`${inst.date}T12:00:00`).toISOString().split('T')[0],
           account_id: newTransaction.fromAccountId || null,
           subcategory_id: newTransaction.subcategoryId || null
         }));
@@ -325,7 +324,7 @@ export default function TransacoesPage() {
         type: "expense",
         description: "",
         amount: "",
-        date: now.toISOString().split("T")[0],
+        date: todayStr,
         fromAccountId: "",
         toAccountId: "",
         subcategoryId: "",
@@ -409,7 +408,8 @@ export default function TransacoesPage() {
               <TableRow>
                 <TableHead className="whitespace-nowrap">Descrição</TableHead>
                 <TableHead className="hidden md:table-cell whitespace-nowrap">Conta</TableHead>
-                <TableHead className="hidden lg:table-cell whitespace-nowrap">Categoria</TableHead>
+                <TableHead className="hidden lg:table-cell whitespace-nowrap">Subcategoria</TableHead>
+                <TableHead className="hidden xl:table-cell whitespace-nowrap">Categoria</TableHead>
                 <TableHead className="whitespace-nowrap">Tipo</TableHead>
                 <TableHead className="whitespace-nowrap">Data</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Valor</TableHead>
@@ -419,11 +419,11 @@ export default function TransacoesPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">Carregando...</TableCell>
+                  <TableCell colSpan={8} className="text-center py-8">Carregando...</TableCell>
                 </TableRow>
               ) : transacoesFiltradas.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-zinc-500">
+                  <TableCell colSpan={8} className="text-center py-8 text-zinc-500">
                     Nenhuma transação encontrada
                   </TableCell>
                 </TableRow>
@@ -437,6 +437,7 @@ export default function TransacoesPage() {
                     <TableCell className="font-medium max-w-[150px] lg:max-w-none truncate">{descriptionWithInstallment}</TableCell>
                     <TableCell className="hidden md:table-cell">{t.account?.name || "-"}</TableCell>
                     <TableCell className="hidden lg:table-cell">{t.subcategory?.name || "-"}</TableCell>
+                    <TableCell className="hidden xl:table-cell">{t.subcategory?.category?.name || "-"}</TableCell>
                     <TableCell>
                       <Badge className={t.type === "income" ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}>
                         {t.type === "income" ? "Receita" : "Despesa"}
