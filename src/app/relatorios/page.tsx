@@ -263,7 +263,7 @@ export default function RelatoriosPage() {
           </div>
         </aside>
 
-        <main className="flex-1 p-4 md:p-8">
+        <main className="flex-1 p-4 md:p-8 w-full min-w-0">
           <div className="max-w-7xl mx-auto space-y-8">
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
