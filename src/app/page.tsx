@@ -9,6 +9,7 @@ import { Card, Metric, Text, Flex, Grid } from "@tremor/react";
 import { ArrowUpRight, ArrowDownRight, LogOut, ChevronLeft, ChevronRight, LayoutDashboard, Wallet, PieChart, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -50,7 +51,7 @@ interface DataResponse {
   previous: Transaction[];
 }
 
-const ACCOUNT_TYPE_FILTER = "pessoal";
+type ViewFilter = "pessoal" | "negocios";
 
 function getMonthRange(year: number, month: number): { start: string; end: string } {
   const start = `${year}-${String(month).padStart(2, "0")}-01`;
@@ -65,7 +66,7 @@ function formatMonthYear(year: number, month: number): string {
 }
 
 const fetcher = async (key: string): Promise<DataResponse> => {
-  const [year, month] = key.split("|");
+  const [view, year, month] = key.split("|");
   
   const currentYear = parseInt(year);
   const currentMonth = parseInt(month);
@@ -82,7 +83,7 @@ const fetcher = async (key: string): Promise<DataResponse> => {
     .from("transactions")
     .select("*, categories(name)")
     .eq("user_id", user?.id)
-    .eq("account_type", ACCOUNT_TYPE_FILTER)
+    .eq("account_type", view)
     .gte("date", currentRange.start)
     .lte("date", currentRange.end)
     .order("date", { ascending: false });
@@ -91,7 +92,7 @@ const fetcher = async (key: string): Promise<DataResponse> => {
     .from("transactions")
     .select("*, categories(name)")
     .eq("user_id", user?.id)
-    .eq("account_type", ACCOUNT_TYPE_FILTER)
+    .eq("account_type", view)
     .gte("date", prevRange.start)
     .lte("date", prevRange.end)
     .order("date", { ascending: false });
@@ -174,10 +175,11 @@ export default function DashboardFinanceiro() {
   const router = useRouter();
 
   const now = new Date();
+  const [viewFilter, setViewFilter] = useState<ViewFilter>("pessoal");
   const [selectedYear, setSelectedYear] = useState(now.getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState((now.getMonth() + 1).toString());
 
-  const cacheKey = useMemo(() => `${selectedYear}|${selectedMonth}`, [selectedYear, selectedMonth]);
+  const cacheKey = useMemo(() => `${viewFilter}|${selectedYear}|${selectedMonth}`, [viewFilter, selectedYear, selectedMonth]);
 
   const { data, isLoading, error } = useSWR<DataResponse>(
     user ? cacheKey : null,
@@ -337,6 +339,11 @@ export default function DashboardFinanceiro() {
             </header>
 
             <div className="flex flex-wrap items-center gap-3">
+              <ToggleGroup type="single" value={viewFilter} onValueChange={(v) => v && setViewFilter(v as ViewFilter)} className="bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 p-1">
+                <ToggleGroupItem value="pessoal" className="px-4 py-2 data-[state=on]:bg-emerald-500 data-[state=on]:text-white">Pessoal</ToggleGroupItem>
+                <ToggleGroupItem value="negocios" className="px-4 py-2 data-[state=on]:bg-emerald-500 data-[state=on]:text-white">Negócios</ToggleGroupItem>
+              </ToggleGroup>
+
               <div className="flex items-center gap-1 bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 p-1">
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goToPrevMonth}>
                   <ChevronLeft className="w-4 h-4" />
