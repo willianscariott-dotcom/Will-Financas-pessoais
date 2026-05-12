@@ -50,7 +50,7 @@ interface DataResponse {
   previous: Transaction[];
 }
 
-type ViewFilter = "unclassified" | "pessoal" | "negocios" | "todas";
+const ACCOUNT_TYPE_FILTER = "pessoal";
 
 function getMonthRange(year: number, month: number): { start: string; end: string } {
   const start = `${year}-${String(month).padStart(2, "0")}-01`;
@@ -65,7 +65,7 @@ function formatMonthYear(year: number, month: number): string {
 }
 
 const fetcher = async (key: string): Promise<DataResponse> => {
-  const [view, year, month] = key.split("|");
+  const [year, month] = key.split("|");
   
   const currentYear = parseInt(year);
   const currentMonth = parseInt(month);
@@ -78,33 +78,23 @@ const fetcher = async (key: string): Promise<DataResponse> => {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  let query = supabase
+  const currentRes = await supabase
     .from("transactions")
     .select("*, categories(name)")
     .eq("user_id", user?.id)
+    .eq("account_type", ACCOUNT_TYPE_FILTER)
     .gte("date", currentRange.start)
     .lte("date", currentRange.end)
     .order("date", { ascending: false });
 
-  if (view !== "todas" && view !== "unclassified") {
-    query = query.eq("account_type", view);
-  }
-
-  const currentRes = await query;
-
-  let prevQuery = supabase
+  const prevRes = await supabase
     .from("transactions")
     .select("*, categories(name)")
     .eq("user_id", user?.id)
+    .eq("account_type", ACCOUNT_TYPE_FILTER)
     .gte("date", prevRange.start)
     .lte("date", prevRange.end)
     .order("date", { ascending: false });
-
-  if (view !== "todas" && view !== "unclassified") {
-    prevQuery = prevQuery.eq("account_type", view);
-  }
-
-  const prevRes = await prevQuery;
 
   return {
     current: currentRes.data || [],
@@ -184,14 +174,12 @@ export default function DashboardFinanceiro() {
   const router = useRouter();
 
   const now = new Date();
-  const [viewFilter, setViewFilter] = useState<ViewFilter>("unclassified");
   const [selectedYear, setSelectedYear] = useState(now.getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState((now.getMonth() + 1).toString());
-  const [updatingId, setUpdatingId] = useState<number | null>(null);
 
-  const cacheKey = useMemo(() => `${viewFilter}|${selectedYear}|${selectedMonth}`, [viewFilter, selectedYear, selectedMonth]);
+  const cacheKey = useMemo(() => `${selectedYear}|${selectedMonth}`, [selectedYear, selectedMonth]);
 
-  const { data, isLoading, error, mutate } = useSWR<DataResponse>(
+  const { data, isLoading, error } = useSWR<DataResponse>(
     user ? cacheKey : null,
     fetcher,
     {
@@ -227,23 +215,19 @@ export default function DashboardFinanceiro() {
     }
   };
 
-  const updateTransactionClassification = async (transactionId: number, newType: string | null) => {
-    setUpdatingId(transactionId);
-    
-    const { error } = await supabase
-      .from("transactions")
-      .update({ account_type: newType })
-      .eq("id", transactionId);
+  if (authLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">Carregando...</div>;
+  }
 
-    if (!error) {
-      mutate();
-    }
-    
-    setUpdatingId(null);
-  };
+  if (!user) {
+    return null;
+  }
+
+  const transactions = data?.current || [];
+  const previousTransactions = data?.previous || [];
 
   const calculateKPIs = (): KPIData[] => {
-    if (!data) {
+    if (transactions.length === 0) {
       return [
         { title: "Receitas", metric: "R$ 0", variation: "0%", isPositive: true },
         { title: "Despesas", metric: "R$ 0", variation: "0%", isPositive: true },
@@ -251,20 +235,18 @@ export default function DashboardFinanceiro() {
       ];
     }
 
-    const { current, previous } = data;
-
-    const currentIncome = current
+    const currentIncome = transactions
       .filter((t) => t.type === "income")
       .reduce((sum, t) => sum + t.amount, 0);
-    const currentExpense = current
+    const currentExpense = transactions
       .filter((t) => t.type === "expense")
       .reduce((sum, t) => sum + t.amount, 0);
     const currentBalance = currentIncome - currentExpense;
 
-    const prevIncome = previous
+    const prevIncome = previousTransactions
       .filter((t) => t.type === "income")
       .reduce((sum, t) => sum + t.amount, 0);
-    const prevExpense = previous
+    const prevExpense = previousTransactions
       .filter((t) => t.type === "expense")
       .reduce((sum, t) => sum + t.amount, 0);
 
@@ -297,10 +279,8 @@ export default function DashboardFinanceiro() {
   };
 
   const calculateCategoryData = (type: "income" | "expense"): CategoryData[] => {
-    if (!data) return [];
-    
     const categoryMap = new Map<string, number>();
-    data.current
+    transactions
       .filter((t) => t.type === type)
       .forEach((t) => {
         const catName = t.categories?.name || "Sem categoria";
@@ -312,121 +292,11 @@ export default function DashboardFinanceiro() {
       .sort((a, b) => b.value - a.value);
   };
 
-  const getClassificationBadge = (accountType: string | null) => {
-    if (!accountType) {
-      return <span className="px-2 py-1 text-xs rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">Não Classificado</span>;
-    }
-    if (accountType === "pessoal") {
-      return <span className="px-2 py-1 text-xs rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">Pessoal</span>;
-    }
-    if (accountType === "negocios") {
-      return <span className="px-2 py-1 text-xs rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">Negócios</span>;
-    }
-    return null;
-  };
-
-  if (authLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">Carregando...</div>;
-  }
-
-  if (!user) {
-    return null;
-  }
-
-  const getFilteredTransactions = (transactions: Transaction[]) => {
-    if (viewFilter === "unclassified") {
-      return transactions.filter(t => !t.account_type || t.account_type === "");
-    } else if (viewFilter !== "todas") {
-      return transactions.filter(t => t.account_type === viewFilter);
-    }
-    return transactions;
-  };
-
-  const currentFiltered = getFilteredTransactions(data?.current || []);
-  const previousFiltered = getFilteredTransactions(data?.previous || []);
-
-  const calculateKPIsFiltered = (): KPIData[] => {
-    if (currentFiltered.length === 0) {
-      return [
-        { title: "Receitas", metric: "R$ 0", variation: "0%", isPositive: true },
-        { title: "Despesas", metric: "R$ 0", variation: "0%", isPositive: true },
-        { title: "Saldo", metric: "R$ 0", variation: "0%", isPositive: true },
-      ];
-    }
-
-    const currentIncome = currentFiltered
-      .filter((t) => t.type === "income")
-      .reduce((sum, t) => sum + t.amount, 0);
-    const currentExpense = currentFiltered
-      .filter((t) => t.type === "expense")
-      .reduce((sum, t) => sum + t.amount, 0);
-    const currentBalance = currentIncome - currentExpense;
-
-    const prevIncome = previousFiltered
-      .filter((t) => t.type === "income")
-      .reduce((sum, t) => sum + t.amount, 0);
-    const prevExpense = previousFiltered
-      .filter((t) => t.type === "expense")
-      .reduce((sum, t) => sum + t.amount, 0);
-
-    const calcVariation = (current: number, previous: number) => {
-      if (previous === 0) return current > 0 ? "+100%" : "0%";
-      const variation = ((current - previous) / previous) * 100;
-      return `${variation >= 0 ? "+" : ""}${variation.toFixed(1)}%`;
-    };
-
-    return [
-      {
-        title: "Receitas",
-        metric: `R$ ${currentIncome.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
-        variation: calcVariation(currentIncome, prevIncome),
-        isPositive: currentIncome >= prevIncome,
-      },
-      {
-        title: "Despesas",
-        metric: `R$ ${currentExpense.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
-        variation: calcVariation(currentExpense, prevExpense),
-        isPositive: currentExpense <= prevExpense,
-      },
-      {
-        title: "Saldo",
-        metric: `R$ ${currentBalance.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
-        variation: currentBalance >= 0 ? "Positivo" : "Negativo",
-        isPositive: currentBalance >= 0,
-      },
-    ];
-  };
-
-  const calculateCategoryDataFiltered = (type: "income" | "expense"): CategoryData[] => {
-    const categoryMap = new Map<string, number>();
-    currentFiltered
-      .filter((t) => t.type === type)
-      .forEach((t) => {
-        const catName = t.categories?.name || "Sem categoria";
-        const current = categoryMap.get(catName) || 0;
-        categoryMap.set(catName, current + t.amount);
-      });
-    return Array.from(categoryMap.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-  };
-
-  const kpiData = calculateKPIsFiltered();
-  const incomeByCategory = calculateCategoryDataFiltered("income");
-  const expenseByCategory = calculateCategoryDataFiltered("expense");
-  const transactions = currentFiltered;
+  const kpiData = calculateKPIs();
+  const incomeByCategory = calculateCategoryData("income");
+  const expenseByCategory = calculateCategoryData("expense");
   const maxExpenseValue = Math.max(...expenseByCategory.map((c) => c.value), 1);
   const maxIncomeValue = Math.max(...incomeByCategory.map((c) => c.value), 1);
-
-  const getViewLabel = () => {
-    switch (viewFilter) {
-      case "pessoal": return "Visão Pessoal";
-      case "negocios": return "Visão Negócios";
-      case "unclassified": return "Não Classificados";
-      case "todas": return "Todas";
-      default: return "Selecione";
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900">
@@ -479,17 +349,7 @@ export default function DashboardFinanceiro() {
                 </Button>
               </div>
 
-              <Select value={viewFilter} onValueChange={(v) => setViewFilter(v as ViewFilter)}>
-                <SelectTrigger className="w-52 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-sm">
-                  <SelectValue placeholder="Visão" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unclassified">Não Classificados</SelectItem>
-                  <SelectItem value="pessoal">Visão Pessoal</SelectItem>
-                  <SelectItem value="negocios">Visão Negócios</SelectItem>
-                  <SelectItem value="todas">Todas</SelectItem>
-                </SelectContent>
-              </Select>
+              
             </div>
 
             {isLoading ? (
@@ -588,52 +448,35 @@ export default function DashboardFinanceiro() {
                           <TableHead>Tipo</TableHead>
                           <TableHead>Data</TableHead>
                           <TableHead className="text-right">Valor</TableHead>
-                          <TableHead>Classificação</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {transactions.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={6} className="text-center py-8 text-zinc-500">
-                              Nenhuma transação encontrada
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          transactions.map((t) => (
-                            <TableRow key={t.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50">
-                              <TableCell className="font-medium">{t.description}</TableCell>
-                              <TableCell>{t.categories?.name || "Sem categoria"}</TableCell>
-                              <TableCell>
-                                <Badge className={t.type === "income" 
-                                  ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100" 
-                                  : "bg-rose-100 text-rose-700 hover:bg-rose-100"
-                                }>
-                                  {t.type === "income" ? "Receita" : "Despesa"}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>{new Date(t.date).toLocaleDateString("pt-BR")}</TableCell>
-                              <TableCell className={`text-right font-semibold ${t.type === "income" ? "text-emerald-600" : "text-rose-600"}`}>
-                                {t.type === "income" ? "+" : "-"} R$ {t.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                              </TableCell>
-                              <TableCell>
-                                <Select 
-                                  value={t.account_type || "unclassified"} 
-                                  onValueChange={(value) => updateTransactionClassification(t.id, value === "unclassified" ? null : value)}
-                                  disabled={updatingId === t.id}
-                                >
-                                  <SelectTrigger className="h-8 w-36">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="unclassified">Não Classificado</SelectItem>
-                                    <SelectItem value="pessoal">Pessoal</SelectItem>
-                                    <SelectItem value="negocios">Negócios</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </TableCell>
-                            </TableRow>
-                          ))
-                        )}
+{transactions.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-zinc-500">
+                          Nenhuma transação encontrada
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      transactions.map((t) => (
+                        <TableRow key={t.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50">
+                          <TableCell className="font-medium">{t.description}</TableCell>
+                          <TableCell>{t.categories?.name || "Sem categoria"}</TableCell>
+                          <TableCell>
+                            <Badge className={t.type === "income" 
+                              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100" 
+                              : "bg-rose-100 text-rose-700 hover:bg-rose-100"
+                            }>
+                              {t.type === "income" ? "Receita" : "Despesa"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{new Date(t.date).toLocaleDateString("pt-BR")}</TableCell>
+                          <TableCell className={`text-right font-semibold ${t.type === "income" ? "text-emerald-600" : "text-rose-600"}`}>
+                            {t.type === "income" ? "+" : "-"} R$ {t.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                       </TableBody>
                     </Table>
                   </div>
