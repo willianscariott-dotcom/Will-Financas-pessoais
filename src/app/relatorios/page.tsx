@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
-import { Card, Title, AreaChart, BarChart, Text, Grid } from "@tremor/react";
-import { LogOut, LayoutDashboard, Wallet, PieChart, TrendingUp, Download } from "lucide-react";
+import { Card, Title, Text, Grid } from "@tremor/react";
+import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
+import { LogOut, LayoutDashboard, Wallet, PieChart as PieChartIcon, TrendingUp, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -76,15 +77,16 @@ const fetcher = async (key: string): Promise<Transaction[]> => {
 };
 
 const CustomTooltip = (props: any) => {
-  const { payload, active } = props;
-  if (!active || !payload) return null;
+  const { payload, active, label } = props;
+  if (!active || !payload || payload.length === 0) return null;
   return (
-    <div className="w-56 rounded-tremor-default border border-tremor-border bg-white dark:bg-slate-900 p-2 text-tremor-default shadow-tremor-dropdown">
+    <div className="w-56 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-slate-900 p-3 shadow-lg">
+      <p className="font-semibold text-slate-900 dark:text-slate-100 mb-2">{label}</p>
       {payload.map((category: any, idx: number) => (
         <div key={idx} className="flex flex-1 space-x-2.5 mb-2 last:mb-0">
-          <div className={`flex w-1 flex-col bg-${category.color}-500 rounded`} style={{ backgroundColor: category.color.startsWith('#') ? category.color : undefined }} />
+          <div className="flex w-1 flex-col rounded" style={{ backgroundColor: category.color || category.payload.fill }} />
           <div className="space-y-1">
-            <p className="text-slate-800 dark:text-slate-200">{category.dataKey}</p>
+            <p className="text-slate-600 dark:text-slate-400 text-sm">{category.name || category.dataKey}</p>
             <p className="font-medium text-slate-900 dark:text-slate-100">
               R$ {Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2 }).format(category.value)}
             </p>
@@ -120,6 +122,7 @@ export default function RelatoriosPage() {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("este-mes");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const cacheKey = useMemo(() => `${timeFilter}|${customStart}|${customEnd}`, [timeFilter, customStart, customEnd]);
 
@@ -172,14 +175,32 @@ export default function RelatoriosPage() {
     transactions
       .filter(t => t.type === "expense")
       .forEach(t => {
-        const catName = t.subcategory?.category?.name || t.subcategory?.name || "Sem Categoria";
+        const catName = t.subcategory?.category?.name || "Sem Categoria";
         categoryMap.set(catName, (categoryMap.get(catName) || 0) + t.amount);
       });
 
     return Array.from(categoryMap.entries())
-      .map(([name, Valor]) => ({ name, Valor }))
-      .sort((a, b) => b.Valor - a.Valor);
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
   }, [transactions]);
+
+  // Process data for Subcategories Drill-down
+  const subcategoriesData = useMemo(() => {
+    if (!transactions || !selectedCategory) return [];
+
+    const subMap = new Map<string, number>();
+
+    transactions
+      .filter(t => t.type === "expense" && (t.subcategory?.category?.name || "Sem Categoria") === selectedCategory)
+      .forEach(t => {
+        const subName = t.subcategory?.name || "Sem Subcategoria";
+        subMap.set(subName, (subMap.get(subName) || 0) + t.amount);
+      });
+
+    return Array.from(subMap.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [transactions, selectedCategory]);
 
   const handleDownloadCSV = () => {
     if (!transactions || transactions.length === 0) {
@@ -232,7 +253,7 @@ export default function RelatoriosPage() {
           <nav className="space-y-2">
             <SidebarItem icon={LayoutDashboard} label="Dashboard" href="/" />
             <SidebarItem icon={Wallet} label="Transações" href="/transacoes" />
-            <SidebarItem icon={PieChart} label="Relatórios" href="/relatorios" active />
+            <SidebarItem icon={PieChartIcon} label="Relatórios" href="/relatorios" active />
           </nav>
           <div className="absolute bottom-4 left-4 right-4">
             <Button variant="outline" className="w-full justify-start gap-2" onClick={signOut}>
@@ -302,44 +323,98 @@ export default function RelatoriosPage() {
             {isLoading ? (
               <div className="text-center py-12 text-zinc-500">Analisando dados...</div>
             ) : (
-              <Grid numItems={1} numItemsLg={2} className="gap-6">
-                <Card className="dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-sm w-full min-w-0 overflow-hidden">
-                  <Title className="text-zinc-900 dark:text-zinc-50">Evolução do Fluxo de Caixa</Title>
-                  <Text className="mb-6">Receitas vs Despesas ao longo do tempo</Text>
-                  <AreaChart
-                    className="h-80 mt-4 [&_.recharts-tooltip-cursor]:fill-zinc-100 dark:[&_.recharts-tooltip-cursor]:fill-zinc-800"
-                    data={cashFlowData}
-                    index="month"
-                    categories={["Receitas", "Despesas"]}
-                    colors={["#10b981", "#ef4444"]}
-                    valueFormatter={(value: number) =>
-                      `R$ ${Intl.NumberFormat("pt-BR").format(value)}`
-                    }
-                    showLegend={true}
-                    yAxisWidth={80}
-                    customTooltip={CustomTooltip}
-                  />
-                </Card>
+              <div className="space-y-6">
+                <Grid numItems={1} numItemsLg={2} className="gap-6">
+                  <Card className="dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-sm w-full min-w-0 overflow-hidden">
+                    <Title className="text-zinc-900 dark:text-zinc-50">Evolução do Fluxo de Caixa</Title>
+                    <Text className="mb-6">Receitas vs Despesas ao longo do tempo</Text>
+                    <div className="h-80 w-full mt-4">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={cashFlowData}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#3f3f46" opacity={0.2} />
+                          <XAxis dataKey="month" stroke="#71717a" fontSize={12} tickLine={false} axisLine={false} />
+                          <YAxis 
+                            stroke="#71717a" 
+                            fontSize={12} 
+                            tickLine={false} 
+                            axisLine={false} 
+                            tickFormatter={(value) => `R$ ${Intl.NumberFormat("pt-BR", { notation: "compact" }).format(value)}`} 
+                          />
+                          <Tooltip content={<CustomTooltip />} />
+                          <Legend wrapperStyle={{ fontSize: '12px' }} />
+                          <Area type="monotone" dataKey="Receitas" stroke="#10b981" fill="#10b981" fillOpacity={0.2} strokeWidth={2} />
+                          <Area type="monotone" dataKey="Despesas" stroke="#ef4444" fill="#ef4444" fillOpacity={0.2} strokeWidth={2} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Card>
 
-                <Card className="dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-sm w-full min-w-0 overflow-hidden">
-                  <Title className="text-zinc-900 dark:text-zinc-50">Consumo por Categoria</Title>
-                  <Text className="mb-6">Onde seu dinheiro foi gasto no período</Text>
-                  <BarChart
-                    className="h-80 mt-4 [&_.recharts-tooltip-cursor]:fill-zinc-100 dark:[&_.recharts-tooltip-cursor]:fill-zinc-800"
-                    data={expensesByCategory}
-                    index="name"
-                    categories={["Valor"]}
-                    colors={["#ef4444"]}
-                    valueFormatter={(value: number) =>
-                      `R$ ${Intl.NumberFormat("pt-BR").format(value)}`
-                    }
-                    layout="vertical"
-                    yAxisWidth={120}
-                    showLegend={false}
-                    customTooltip={CustomTooltip}
-                  />
-                </Card>
-              </Grid>
+                  <Card className="dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-sm w-full min-w-0 overflow-hidden">
+                    <Title className="text-zinc-900 dark:text-zinc-50">Consumo por Categoria</Title>
+                    <Text className="mb-6">Onde seu dinheiro foi gasto no período</Text>
+                    <div className="h-80 w-full mt-4">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={expensesByCategory} layout="vertical" margin={{ left: 50 }}>
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#3f3f46" opacity={0.2} />
+                          <XAxis 
+                            type="number" 
+                            stroke="#71717a" 
+                            fontSize={12} 
+                            tickLine={false} 
+                            axisLine={false} 
+                            tickFormatter={(value) => `R$ ${Intl.NumberFormat("pt-BR", { notation: "compact" }).format(value)}`}
+                          />
+                          <YAxis dataKey="name" type="category" stroke="#71717a" fontSize={12} tickLine={false} axisLine={false} />
+                          <Tooltip content={<CustomTooltip />} />
+                          <Bar 
+                            dataKey="value" 
+                            fill="#ef4444" 
+                            radius={[0, 4, 4, 0]}
+                            onClick={(data) => setSelectedCategory(data.name)}
+                            cursor="pointer"
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Card>
+                </Grid>
+
+                {selectedCategory && (
+                  <Card className="dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-sm w-full min-w-0 overflow-hidden animate-in fade-in zoom-in duration-300">
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <Title className="text-zinc-900 dark:text-zinc-50">Drill-down: {selectedCategory}</Title>
+                        <Text>Distribuição de gastos por subcategoria</Text>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => setSelectedCategory(null)}>
+                        Voltar
+                      </Button>
+                    </div>
+                    <div className="h-80 w-full mt-4 flex items-center justify-center">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={subcategoriesData}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={80}
+                            outerRadius={120}
+                            paddingAngle={2}
+                            label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                          >
+                            {subcategoriesData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={['#ef4444', '#f87171', '#fca5a5', '#fecaca', '#7f1d1d', '#991b1b', '#b91c1c', '#dc2626'][index % 8]} />
+                            ))}
+                          </Pie>
+                          <Tooltip content={<CustomTooltip />} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Card>
+                )}
+              </div>
             )}
           </div>
         </main>

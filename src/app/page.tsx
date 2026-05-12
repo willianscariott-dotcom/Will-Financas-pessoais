@@ -684,7 +684,7 @@ export default function DashboardFinanceiro() {
                             <TableRow key={t.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50">
                               <TableCell className="font-medium">{descriptionWithInstallment}</TableCell>
                               <TableCell>{t.account?.name || "Sem conta"}</TableCell>
-                              <TableCell>{t.subcategory?.name || t.subcategory?.category?.name || "Sem subcategoria"}</TableCell>
+                              <TableCell>{t.subcategory?.name || "-"}</TableCell>
                               <TableCell>
                                 <Badge className={t.type === "income" ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100" : "bg-rose-100 text-rose-700 hover:bg-rose-100"}>
                                   {t.type === "income" ? "Receita" : "Despesa"}
