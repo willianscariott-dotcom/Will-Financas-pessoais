@@ -303,8 +303,6 @@ export default function TransacoesPage() {
           subcategory_id: newTransaction.subcategoryId || null
         }));
 
-        console.log("DEBUG payload:", payload);
-
         const { error: insertError } = await supabase.from("pessoal_transactions").insert(payload);
         
         if (insertError) {
@@ -440,7 +438,7 @@ export default function TransacoesPage() {
                         {t.type === "income" ? "Receita" : "Despesa"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap">{new Date(t.date + 'T12:00:00').toLocaleDateString('pt-BR')}</TableCell>
+                    <TableCell className="whitespace-nowrap">{(() => { const [y, m, d] = t.date.split('-'); return `${d}/${m}/${y}`; })()}</TableCell>
                     <TableCell className={`text-right font-medium whitespace-nowrap ${t.type === "income" ? "text-emerald-600" : "text-rose-600"}`}>
                       {t.type === "income" ? "+" : "-"} R$ {t.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                     </TableCell>
