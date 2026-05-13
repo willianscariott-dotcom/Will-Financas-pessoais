@@ -139,29 +139,29 @@ export default function TransacoesPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const todayDate = new Date();
-  const todayStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, "0")}-${String(todayDate.getDate()).padStart(2, "0")}`;
-  
-  function createLocalNoonDate(year: number, month: number, day: number): Date {
-    const date = new Date(year, month - 1, day, 12, 0, 0, 0);
-    return date;
-  }
-  
-  const defaultDate = createLocalNoonDate(todayDate.getFullYear(), todayDate.getMonth() + 1, todayDate.getDate());
-  
   const [filterType, setFilterType] = useState<FilterType>("todas");
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("full-month");
-  const [selectedYear, setSelectedYear] = useState(todayDate.getFullYear().toString());
-  const [selectedMonth, setSelectedMonth] = useState((todayDate.getMonth() + 1).toString());
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
+  const [clientDate, setClientDate] = useState<string | undefined>(undefined);
+  
+  useEffect(() => {
+    const now = new Date();
+    const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    setClientDate(localDate);
+    setSelectedYear(now.getFullYear().toString());
+    setSelectedMonth((now.getMonth() + 1).toString());
+  }, []);
+  
+  const [selectedYear, setSelectedYear] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState("");
   
   const [isNewOpen, setIsNewOpen] = useState(false);
   const [newTransaction, setNewTransaction] = useState({
     type: "expense" as "income" | "expense",
     description: "",
     amount: "",
-    date: todayStr,
+    date: clientDate || "",
     fromAccountId: "",
     toAccountId: "",
     subcategoryId: "",
@@ -324,11 +324,13 @@ export default function TransacoesPage() {
       toast.success("Transação salva com sucesso!");
       mutate();
       setIsNewOpen(false);
+      const now = new Date();
+      const resetDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
       setNewTransaction({
         type: "expense",
         description: "",
         amount: "",
-        date: todayStr,
+        date: resetDate,
         fromAccountId: "",
         toAccountId: "",
         subcategoryId: "",
