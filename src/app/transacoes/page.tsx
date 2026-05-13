@@ -139,8 +139,8 @@ export default function TransacoesPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const now = new Date();
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const todayDate = new Date();
+  const todayStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, "0")}-${String(todayDate.getDate()).padStart(2, "0")}`;
   const [filterType, setFilterType] = useState<FilterType>("todas");
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("full-month");
   const [selectedYear, setSelectedYear] = useState(now.getFullYear().toString());
@@ -412,8 +412,8 @@ export default function TransacoesPage() {
                 <TableHead className="hidden md:table-cell whitespace-nowrap">Conta</TableHead>
                 <TableHead className="hidden lg:table-cell whitespace-nowrap">Subcategoria</TableHead>
                 <TableHead className="hidden xl:table-cell whitespace-nowrap">Categoria</TableHead>
-                <TableHead className="whitespace-nowrap">Tipo</TableHead>
-                <TableHead className="whitespace-nowrap">Data</TableHead>
+                <TableHead className="hidden sm:table-cell whitespace-nowrap">Tipo</TableHead>
+                <TableHead className="hidden md:table-cell whitespace-nowrap">Data</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Valor</TableHead>
                 <TableHead className="w-16 whitespace-nowrap">Ações</TableHead>
               </TableRow>
@@ -436,16 +436,24 @@ export default function TransacoesPage() {
                     : t.description;
                   return (
                   <TableRow key={t.id}>
-                    <TableCell className="font-medium max-w-[150px] lg:max-w-none truncate">{descriptionWithInstallment}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex flex-col">
+                        <span className="truncate max-w-[180px] lg:max-w-none">{descriptionWithInstallment}</span>
+                        <div className="flex flex-col md:hidden gap-1 mt-1 text-xs text-zinc-500">
+                          <span>{t.account?.name || '-'} • {t.subcategory?.name || '-'}</span>
+                          <span>{new Date(t.date).getUTCDate()}/{String(new Date(t.date).getUTCMonth() + 1).padStart(2, '0')}/{new Date(t.date).getUTCFullYear()}</span>
+                        </div>
+                      </div>
+                    </TableCell>
                     <TableCell className="hidden md:table-cell">{t.account?.name || "-"}</TableCell>
                     <TableCell className="hidden lg:table-cell">{t.subcategory?.name || "-"}</TableCell>
                     <TableCell className="hidden xl:table-cell">{t.subcategory?.category?.name || "-"}</TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <Badge className={t.type === "income" ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}>
                         {t.type === "income" ? "Receita" : "Despesa"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap">{new Date(t.date).getUTCDate()}/{String(new Date(t.date).getUTCMonth() + 1).padStart(2, '0')}/{new Date(t.date).getUTCFullYear()}</TableCell>
+                    <TableCell className="hidden md:table-cell whitespace-nowrap">{new Date(t.date).getUTCDate()}/{String(new Date(t.date).getUTCMonth() + 1).padStart(2, '0')}/{new Date(t.date).getUTCFullYear()}</TableCell>
                     <TableCell className={`text-right font-medium whitespace-nowrap ${t.type === "income" ? "text-emerald-600" : "text-rose-600"}`}>
                       {t.type === "income" ? "+" : "-"} R$ {t.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                     </TableCell>
