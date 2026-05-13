@@ -192,10 +192,7 @@ const SidebarItem = ({ icon: Icon, label, href, active = false }: { icon: any; l
 };
 
 function generateInstallments(description: string, amount: number, dateStr: string, type: "income" | "expense", accountId: number | null, subcategoryId: number | null, totalInstallments: number, userId: string): { description: string; date: string; type: string; amount: number; account_id: number | null; subcategory_id: number | null; installment_current: number; installment_total: number; user_id: string }[] {
-  const baseDate = new Date(dateStr);
-  const year = baseDate.getFullYear();
-  const month = baseDate.getMonth() + 1;
-  const day = baseDate.getDate();
+  const [year, month, day] = dateStr.split('-').map(Number);
   
   const installments = [];
   
@@ -690,7 +687,7 @@ export default function DashboardFinanceiro() {
                                   {t.type === "income" ? "Receita" : "Despesa"}
                                 </Badge>
                               </TableCell>
-                              <TableCell>{new Date(t.date).toLocaleDateString("pt-BR")}</TableCell>
+                              <TableCell>{new Date(t.date).getUTCDate()}/{String(new Date(t.date).getUTCMonth() + 1).padStart(2, '0')}/{new Date(t.date).getUTCFullYear()}</TableCell>
                               <TableCell className={`text-right font-semibold ${t.type === "income" ? "text-emerald-600" : "text-rose-600"}`}>
                                 {t.type === "income" ? "+" : "-"} R$ {t.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                               </TableCell>

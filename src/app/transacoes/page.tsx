@@ -444,7 +444,7 @@ export default function TransacoesPage() {
                         {t.type === "income" ? "Receita" : "Despesa"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap">{t.dataExibicao}</TableCell>
+                    <TableCell className="whitespace-nowrap">{new Date(t.date).getUTCDate()}/{String(new Date(t.date).getUTCMonth() + 1).padStart(2, '0')}/{new Date(t.date).getUTCFullYear()}</TableCell>
                     <TableCell className={`text-right font-medium whitespace-nowrap ${t.type === "income" ? "text-emerald-600" : "text-rose-600"}`}>
                       {t.type === "income" ? "+" : "-"} R$ {t.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                     </TableCell>

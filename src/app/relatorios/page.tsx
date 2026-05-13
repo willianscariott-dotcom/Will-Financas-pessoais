@@ -145,9 +145,9 @@ export default function RelatoriosPage() {
     const monthlyData = new Map<string, { month: string; Receitas: number; Despesas: number; date: Date }>();
 
     transactions.forEach(t => {
-      const date = new Date(t.date);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      const label = date.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
+      const date = new Date(t.date + 'T12:00:00');
+      const monthKey = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+      const label = `${String(date.getUTCDate()).padStart(2, '0')}/${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
 
       if (!monthlyData.has(monthKey)) {
         monthlyData.set(monthKey, { month: label, Receitas: 0, Despesas: 0, date });
