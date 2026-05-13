@@ -340,7 +340,11 @@ export default function TransacoesPage() {
     return null;
   }
 
-  const transactions = data?.data || [];
+  const rawTransactions = data?.data || [];
+  const transactions = rawTransactions.map(t => ({
+    ...t,
+    dataExibicao: t.date.split('-').reverse().join('/')
+  }));
   
   const currentFilter = Array.isArray(filterType) ? filterType[0] : filterType;
   const transacoesFiltradas = transactions.filter(t => {
@@ -349,7 +353,8 @@ export default function TransacoesPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 p-3 sm:p-4 lg:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900">
+      <main className="flex-1 w-full max-w-full overflow-hidden p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         <header className="flex items-center gap-2 lg:gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.push("/")}>
@@ -397,7 +402,8 @@ export default function TransacoesPage() {
           </Button>
         </div>
 
-        <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-x-auto">
+        <div className="w-full max-w-[100vw] overflow-x-auto pb-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800">
           <Table>
             <TableHeader>
               <TableRow>
@@ -438,7 +444,7 @@ export default function TransacoesPage() {
                         {t.type === "income" ? "Receita" : "Despesa"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap">{(() => { const [y, m, d] = t.date.split('-'); return `${d}/${m}/${y}`; })()}</TableCell>
+                    <TableCell className="whitespace-nowrap">{t.dataExibicao}</TableCell>
                     <TableCell className={`text-right font-medium whitespace-nowrap ${t.type === "income" ? "text-emerald-600" : "text-rose-600"}`}>
                       {t.type === "income" ? "+" : "-"} R$ {t.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                     </TableCell>
@@ -452,6 +458,7 @@ export default function TransacoesPage() {
               )}
             </TableBody>
           </Table>
+          </div>
         </div>
       </div>
 
@@ -549,6 +556,7 @@ export default function TransacoesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </main>
     </div>
   );
 }

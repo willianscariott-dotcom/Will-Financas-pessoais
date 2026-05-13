@@ -589,7 +589,7 @@ export default function DashboardFinanceiro() {
               <div className="text-center py-12 text-red-500">Erro ao carregar dados</div>
             ) : (
               <>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
                   {kpiData.map((kpi) => (
                     <div key={kpi.title} className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800 p-6 hover:shadow-md transition-shadow">
                       <Flex justifyContent="between" alignItems="start">
