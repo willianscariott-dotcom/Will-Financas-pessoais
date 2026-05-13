@@ -143,25 +143,30 @@ export default function TransacoesPage() {
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("full-month");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
-  const [clientDate, setClientDate] = useState<string | undefined>(undefined);
+  const [isMounted, setIsMounted] = useState(false);
   
   useEffect(() => {
-    const now = new Date();
-    const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    setClientDate(localDate);
-    setSelectedYear(now.getFullYear().toString());
-    setSelectedMonth((now.getMonth() + 1).toString());
+    setIsMounted(true);
   }, []);
   
   const [selectedYear, setSelectedYear] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
+  
+  useEffect(() => {
+    if (!isMounted) return;
+    const now = new Date();
+    const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    setSelectedYear(now.getFullYear().toString());
+    setSelectedMonth((now.getMonth() + 1).toString());
+    setNewTransaction(prev => ({ ...prev, date: localDate }));
+  }, [isMounted]);
   
   const [isNewOpen, setIsNewOpen] = useState(false);
   const [newTransaction, setNewTransaction] = useState({
     type: "expense" as "income" | "expense",
     description: "",
     amount: "",
-    date: clientDate || "",
+    date: "",
     fromAccountId: "",
     toAccountId: "",
     subcategoryId: "",
@@ -551,7 +556,11 @@ export default function TransacoesPage() {
               </div>
               <div className="space-y-1 sm:space-y-2">
                 <Label className="text-sm">Data</Label>
-                <Input className="h-10 sm:h-11" type="date" value={newTransaction.date} onChange={(e) => setNewTransaction({ ...newTransaction, date: e.target.value })} />
+                {isMounted ? (
+                  <Input className="h-10 sm:h-11" type="date" value={newTransaction.date} onChange={(e) => setNewTransaction({ ...newTransaction, date: e.target.value })} />
+                ) : (
+                  <Input className="h-10 sm:h-11" disabled placeholder="Carregando..." />
+                )}
               </div>
             </div>
 
