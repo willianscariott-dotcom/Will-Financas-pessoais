@@ -6,13 +6,14 @@ import useSWR from "swr";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { Card, Metric, Text, Flex, Grid } from "@tremor/react";
-import { ArrowUpRight, ArrowDownRight, LogOut, ChevronLeft, ChevronRight, LayoutDashboard, Wallet, PieChart, TrendingUp, Plus, Pencil, Trash2, X } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, LogOut, ChevronLeft, ChevronRight, LayoutDashboard, Wallet, PieChart, TrendingUp, Plus, Pencil, Trash2, X, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -530,6 +531,37 @@ export default function DashboardFinanceiro() {
         </aside>
 
         <main className="flex-1 w-full max-w-full overflow-hidden p-4 md:p-8">
+          <header className="md:hidden flex items-center justify-between p-4 border-b bg-background">
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Menu className="w-6 h-6" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-64">
+                <div className="flex flex-col gap-4 mt-8">
+                  <Link href="/" className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                    <LayoutDashboard className="w-5 h-5" />
+                    <span>Dashboard</span>
+                  </Link>
+                  <Link href="/transacoes" className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                    <Wallet className="w-5 h-5" />
+                    <span>Transações</span>
+                  </Link>
+                  <Link href="/relatorios" className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                    <PieChart className="w-5 h-5" />
+                    <span>Relatórios</span>
+                  </Link>
+                  <Button variant="outline" className="mt-4 justify-start gap-2" onClick={signOut}>
+                    <LogOut className="w-4 h-4" />
+                    Sair
+                  </Button>
+                </div>
+              </SheetContent>
+            </Sheet>
+            <span className="font-bold">Finanças</span>
+            <div className="w-10" />
+          </header>
           <div className="max-w-7xl mx-auto space-y-8">
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>

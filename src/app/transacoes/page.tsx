@@ -249,7 +249,8 @@ export default function TransacoesPage() {
     const repeatMonths = parseInt(newTransaction.repeatMonths);
     const selectedAccount = newTransaction.fromAccountId || null;
     const selectedSubcategory = newTransaction.subcategoryId || null;
-    const selectedType = newTransaction.type === "income" ? "income" : "expense";
+    const rawType = newTransaction.type;
+    const finalType = rawType === 'income' ? 'income' : (rawType === 'expense' ? 'expense' : (rawType === 'Receita' ? 'income' : (rawType === 'Despesa' ? 'expense' : 'expense')));
     const [year, month, day] = newTransaction.date.split('-');
     const formattedDate = `${year}-${month}-${day}`;
 
@@ -290,7 +291,7 @@ export default function TransacoesPage() {
           newTransaction.description,
           cleanAmount,
           formattedDate,
-          selectedType as "income" | "expense",
+          finalType as "income" | "expense",
           newTransaction.fromAccountId || null,
           repeatMonths,
           user.id
