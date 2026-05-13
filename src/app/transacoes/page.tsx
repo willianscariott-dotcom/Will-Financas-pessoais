@@ -141,10 +141,18 @@ export default function TransacoesPage() {
 
   const todayDate = new Date();
   const todayStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, "0")}-${String(todayDate.getDate()).padStart(2, "0")}`;
+  
+  function createLocalNoonDate(year: number, month: number, day: number): Date {
+    const date = new Date(year, month - 1, day, 12, 0, 0, 0);
+    return date;
+  }
+  
+  const defaultDate = createLocalNoonDate(todayDate.getFullYear(), todayDate.getMonth() + 1, todayDate.getDate());
+  
   const [filterType, setFilterType] = useState<FilterType>("todas");
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("full-month");
-  const [selectedYear, setSelectedYear] = useState(now.getFullYear().toString());
-  const [selectedMonth, setSelectedMonth] = useState((now.getMonth() + 1).toString());
+  const [selectedYear, setSelectedYear] = useState(todayDate.getFullYear().toString());
+  const [selectedMonth, setSelectedMonth] = useState((todayDate.getMonth() + 1).toString());
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   
